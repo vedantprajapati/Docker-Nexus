@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  --background: #BAB5A1;
+  --foreground: #454138;
+  --nier-beige: #BAB5A1;
+  --nier-paper: #CDCAB2;
+  --nier-dark: #454138;
+  --nier-muted: #8A8775;
+  --nier-accent: #B25037;
+  --nier-border: #444139;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-nier-beige: var(--nier-beige);
+  --color-nier-paper: var(--nier-paper);
+  --color-nier-dark: var(--nier-dark);
+  --color-nier-muted: var(--nier-muted);
+  --color-nier-accent: var(--nier-accent);
+  --color-nier-border: var(--nier-border);
+  --font-sans: "Inter", var(--font-geist-sans), sans-serif;
+  --font-mono: "Fira Code", var(--font-geist-mono), monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
