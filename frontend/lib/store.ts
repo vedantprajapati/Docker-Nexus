@@ -15,11 +15,12 @@ interface AppState {
     // Actions
     fetchProjects: () => Promise<void>;
     fetchLiveContainers: () => Promise<void>;
-    createProject: (name: string, description: string, compose: string) => Promise<Project>;
+    createProject: (name: string, description: string, compose: string, x?: number, y?: number) => Promise<Project>;
     selectProject: (id: string) => Promise<void>;
     updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
     deleteProject: (id: string) => Promise<void>;
     deployProject: (id: string) => Promise<{ message: string; output: string }>;
+    deployProjects: (ids: string[]) => Promise<{ message: string }>;
     stopProject: (id: string) => Promise<{ message: string; output: string }>;
     setSelectedNodeId: (id: string | null) => void;
     setIsLiveMode: (isLive: boolean) => void;
@@ -48,13 +49,13 @@ export const useStore = create<AppState>((set, get) => ({
         }
     },
 
-    createProject: async (name, description, compose) => {
+    createProject: async (name, description, compose, x = 0, y = 0) => {
         set({ loading: true, error: null });
         try {
             const res = await fetch(`${API_URL}/api/projects`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description, compose }),
+                body: JSON.stringify({ name, description, compose, x, y }),
             });
             if (!res.ok) {
                 const data = await res.json();
@@ -131,7 +132,32 @@ export const useStore = create<AppState>((set, get) => ({
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Deployment failed');
             set({ loading: false });
+            get().fetchLiveContainers();
             return data;
+        } catch (err) {
+            set({ error: (err as Error).message, loading: false });
+            throw err;
+        }
+    },
+
+    deployProjects: async (ids: string[]) => {
+        set({ loading: true, error: null });
+        try {
+            const results = await Promise.all(ids.map(async (id: string) => {
+                const res = await fetch(`${API_URL}/api/projects/${id}/deploy`, {
+                    method: 'POST',
+                });
+                const data = await res.json();
+                return { id, ok: res.ok, data };
+            }));
+
+            const failures = results.filter(r => !r.ok);
+            if (failures.length > 0) {
+                throw new Error(`Failed to deploy ${failures.length} projects`);
+            }
+
+            set({ loading: false });
+            return { message: `Successfully deployed ${ids.length} projects` };
         } catch (err) {
             set({ error: (err as Error).message, loading: false });
             throw err;
@@ -147,6 +173,7 @@ export const useStore = create<AppState>((set, get) => ({
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Stop failed');
             set({ loading: false });
+            get().fetchLiveContainers();
             return data;
         } catch (err) {
             set({ error: (err as Error).message, loading: false });

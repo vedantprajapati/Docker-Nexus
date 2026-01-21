@@ -7,6 +7,7 @@ export interface Project {
     compose: string;
     x: number;
     y: number;
+    color?: string; // For group color customization
 }
 
 export interface ServiceNode {

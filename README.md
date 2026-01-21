@@ -1,44 +1,65 @@
-# Quantum Crab 🦀
+# Docker Nexus ⚓
 
-> Docker Compose AI Manager - Upload, visualize, deploy, and manage Docker Compose stacks with LLM-powered modifications.
+> **The definitive Docker Compose manager for your home lab.** Visualize, manage, and evolve your services with AI-assisted precision.
 
-## Features
+![Docker Nexus Hero](docs/static/img/project-list.png)
 
-- **Upload** - Import multiple docker-compose.yml files as projects
-- **Visualize** - Interactive graph showing services, networks, volumes, and dependencies
-- **Deploy** - Start, stop, restart stacks with one click
-- **AI Modify** - Use natural language to modify your compose files
+## Why Docker Nexus?
 
-## Quick Start
+Docker Nexus is built for **simple home server setups** and personal app hosting.
+
+Managing a home server can be messy. Terminal commands are great, but sometimes you just want to **see** what's running. Docker Nexus gives you a beautiful, interactive dashboard to:
+
+*   **Manage & Monitor**: Track health, logs, and status of all your containers in real-time.
+*   **Organize**: Group related services, ungroup them, or merge multiple Compose files into logical stacks.
+*   **Simplify**: Control your infrastructure without the overhead of Kubernetes.
+*   **AI Assistance**: Use the built-in AI to modify settings just by asking.
+
+## ✨ Key Features
+
+*   **🕸️ Interactive Graph**: A persistent, visual map of your entire infrastructure. Drag nodes, organize groups, and see the big picture.
+*   **📝 Live Editor**: Edit `docker-compose.yml` files directly in the browser with syntax highlighting.
+*   **🤖 AI Assistant (MCP)**: Use natural language to modify your stacks. Powered by the Model Context Protocol.
+*   **📊 Real-time Monitoring**: View container logs and status updates instantly.
+*   **🏠 Home Lab Ready**: Simple to deploy on any server running Docker.
+
+## 🚀 Quick Start
+
+Get up and running in seconds.
 
 ```bash
-# Clone and run
+# Clone the repo
+git clone git@github.com:vedantprajapati/Docker-Nexus.git
+
+# Enter directory
+cd Docker-Nexus
+
+# Start the application
 docker compose up -d
 
-# Open the UI
-open http://localhost:3000
+# Open your browser
+# http://localhost:3000
 ```
 
-## Configuration
+## 📚 Documentation
+
+Check out our full documentation for detailed guides on:
+*   [**Deployment**](https://vedantprajapati.github.io/Docker-Nexus/docs/deployment)
+*   [**MCP Server API**](https://vedantprajapati.github.io/Docker-Nexus/docs/mcp-server)
+*   [**UI Walkthrough**](https://vedantprajapati.github.io/Docker-Nexus/docs/ui-walkthrough)
+
+## ⚙️ Configuration
+
+Docker Nexus works out of the box, but you can turbocharge it with your favorite AI provider.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `LLM_PROVIDER` | `openai`, `ollama`, `anthropic`, or `gemini` | `ollama` |
-| `OPENAI_API_KEY` | OpenAI API key (if using openai) | - |
-| `ANTHROPIC_API_KEY` | Anthropic API key (if using anthropic) | - |
-| `GEMINI_API_KEY` | Google Gemini API key (if using gemini) | - |
+| `OPENAI_API_KEY` | OpenAI API key | - |
+| `ANTHROPIC_API_KEY` | Anthropic API key | - |
+| `GEMINI_API_KEY` | Google Gemini API key | - |
 | `OLLAMA_URL` | Ollama server URL | `http://host.docker.internal:11434` |
-
-## Development
-
-```bash
-# Frontend (Next.js)
-cd frontend && npm run dev
-
-# Backend (Go)
-cd backend && go run .
-```
 
 ## License
 
-MIT
+MIT © [Vedant Prajapati](https://github.com/vedantprajapati)

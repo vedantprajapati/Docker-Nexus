@@ -1,0 +1,348 @@
+basePath: /api
+definitions:
+  handlers.CategorizeRequest:
+    properties:
+      compose:
+        type: string
+    type: object
+  handlers.CategorizeResponse:
+    properties:
+      categories:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  handlers.CreateProjectRequest:
+    properties:
+      compose:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      x:
+        type: number
+      "y":
+        type: number
+    type: object
+  handlers.ModifyRequest:
+    properties:
+      compose:
+        type: string
+      instruction:
+        type: string
+      projectId:
+        type: string
+    type: object
+  handlers.ModifyResponse:
+    properties:
+      explanation:
+        type: string
+      modifiedCompose:
+        type: string
+    type: object
+  services.DeployResponse:
+    properties:
+      message:
+        type: string
+      output:
+        type: string
+    type: object
+  services.Project:
+    properties:
+      compose:
+        description: Raw YAML content
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      updatedAt:
+        type: string
+      x:
+        type: number
+      "y":
+        type: number
+    type: object
+  services.ServiceStatus:
+    properties:
+      health:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API for managing Docker Compose projects and AI integration.
+  title: Docker Nexus API
+  version: "1.0"
+paths:
+  /docker/containers:
+    get:
+      consumes:
+      - application/json
+      description: List all accessible Docker containers
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: List all containers
+      tags:
+      - docker
+  /llm/categorize:
+    post:
+      consumes:
+      - application/json
+      description: Categorize services in a Docker Compose file using AI
+      parameters:
+      - description: Categorization Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CategorizeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.CategorizeResponse'
+      summary: Categorize services
+      tags:
+      - llm
+  /llm/modify:
+    post:
+      consumes:
+      - application/json
+      description: Use AI to modify a Docker Compose file
+      parameters:
+      - description: Modification Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ModifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ModifyResponse'
+      summary: Modify compose with LLM
+      tags:
+      - llm
+  /projects:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all Docker Compose projects
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.Project'
+            type: array
+      summary: List all projects
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: Create a new Docker Compose project
+      parameters:
+      - description: Project Data
+        in: body
+        name: project
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/services.Project'
+      summary: Create a new project
+      tags:
+      - projects
+  /projects/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a project by ID
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Delete project
+      tags:
+      - projects
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific project
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.Project'
+      summary: Get project by ID
+      tags:
+      - projects
+    put:
+      consumes:
+      - application/json
+      description: Update an existing project
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Project Data
+        in: body
+        name: project
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.Project'
+      summary: Update project
+      tags:
+      - projects
+  /projects/{id}/deploy:
+    post:
+      consumes:
+      - application/json
+      description: Deploy a Docker Compose project
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.DeployResponse'
+      summary: Deploy project
+      tags:
+      - docker
+  /projects/{id}/logs:
+    get:
+      consumes:
+      - application/json
+      description: Get logs for a project or specific service
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Service Name
+        in: query
+        name: service
+        type: string
+      - default: "100"
+        description: Number of lines to tail
+        in: query
+        name: tail
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get project logs
+      tags:
+      - docker
+  /projects/{id}/status:
+    get:
+      consumes:
+      - application/json
+      description: Get status of services in a project
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.ServiceStatus'
+            type: array
+      summary: Get project status
+      tags:
+      - docker
+  /projects/{id}/stop:
+    post:
+      consumes:
+      - application/json
+      description: Stop a Docker Compose project
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.DeployResponse'
+      summary: Stop project
+      tags:
+      - docker
+swagger: "2.0"

@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Quantum Crab - Docker Compose Manager",
-  description: "Upload, visualize, deploy, and manage Docker Compose stacks with AI-powered modifications",
+  title: "Docker Nexus - Docker Compose Manager",
+  description: "Advanced Docker Compose orchestration with AI-assisted modifications",
 };
 
 export default function RootLayout({
@@ -18,9 +18,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.variable} antialiased`}
+        suppressHydrationWarning
       >
         {children}
       </body>

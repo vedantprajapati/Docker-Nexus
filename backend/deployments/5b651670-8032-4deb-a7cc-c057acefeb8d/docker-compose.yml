@@ -1,0 +1,4 @@
+include:
+  - ../6d525ae0-ee08-41d2-9b90-f52bf0ab1e9c/docker-compose.yml
+  - ../85e2209c-6945-4672-9a4b-bd6d9832dfa8/docker-compose.yml
+services: null

@@ -19,8 +19,8 @@ RUN apk add --no-cache docker-cli docker-cli-compose ca-certificates
 WORKDIR /app
 COPY --from=builder /app/server .
 
-# Create projects directory
-RUN mkdir -p /app/projects
+# Create deployments directory
+RUN mkdir -p /app/deployments
 
 EXPOSE 8080
 

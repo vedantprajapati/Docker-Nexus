@@ -167,17 +167,24 @@ export default function WorkloadDetail() {
             <div className="p-6 border-t border-nier-dark/10 bg-nier-paper/30 space-y-3">
                 <button
                     disabled={!isRunning}
+                    onClick={() => alert('Terminal access for ' + serviceName + ' would open here. (Backend TTY proxy required)')}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-nier-dark text-nier-beige text-[11px] font-bold uppercase tracking-[0.2em] hover:opacity-90 transition-all disabled:opacity-30"
                 >
                     <Terminal className="w-4 h-4" />
                     Console Access
                 </button>
                 <div className="grid grid-cols-2 gap-3">
-                    <button className="flex items-center justify-center gap-2 px-4 py-3 border border-nier-dark text-nier-dark text-[10px] font-bold uppercase tracking-widest hover:bg-nier-dark hover:text-nier-beige transition-all">
+                    <button
+                        onClick={() => alert('Logs for ' + serviceName + ' would stream here.')}
+                        className="flex items-center justify-center gap-2 px-4 py-3 border border-nier-dark text-nier-dark text-[10px] font-bold uppercase tracking-widest hover:bg-nier-dark hover:text-nier-beige transition-all"
+                    >
                         <Activity className="w-3.5 h-3.5" />
                         Logs
                     </button>
-                    <button className="flex items-center justify-center gap-2 px-4 py-3 border border-nier-dark text-nier-dark text-[10px] font-bold uppercase tracking-widest hover:bg-nier-dark hover:text-nier-beige transition-all">
+                    <button
+                        onClick={() => alert('Restarting ' + serviceName + '...')}
+                        className="flex items-center justify-center gap-2 px-4 py-3 border border-nier-dark text-nier-dark text-[10px] font-bold uppercase tracking-widest hover:bg-nier-dark hover:text-nier-beige transition-all"
+                    >
                         <Zap className="w-3.5 h-3.5" />
                         Restart
                     </button>

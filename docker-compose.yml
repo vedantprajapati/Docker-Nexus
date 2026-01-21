@@ -4,14 +4,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8080
+      - NEXT_PUBLIC_API_URL=http://localhost:8080/api
     depends_on:
       - backend
-    develop:
-      watch:
-        - action: sync
-          path: ./frontend
-          target: /app
 
   backend:
     build: ./backend
@@ -19,8 +14,13 @@ services:
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./projects:/app/projects
+      - ./data/store.json:/app/store.json
+      - ./data/deployments:/app/deployments
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEPLOY_DIR=/app/deployments
+      - PORT=8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
       - LLM_PROVIDER=${LLM_PROVIDER:-ollama}

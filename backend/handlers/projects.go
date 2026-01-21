@@ -1,28 +1,20 @@
 package handlers
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"time"
-
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
+
+	"quantum-crab/services"
 )
 
-const projectsDir = "./projects"
-
-type Project struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	Compose     string    `json:"compose"` // Raw YAML content
-	X           float64   `json:"x"`
-	Y           float64   `json:"y"`
+type ProjectHandler struct {
+	Service *services.ProjectService
 }
+
+func NewProjectHandler(s *services.ProjectService) *ProjectHandler {
+	return &ProjectHandler{Service: s}
+}
+
 type CreateProjectRequest struct {
 	Name        string  `json:"name"`
 	Description string  `json:"description,omitempty"`
@@ -31,88 +23,32 @@ type CreateProjectRequest struct {
 	Y           float64 `json:"y,omitempty"`
 }
 
-func getProjectPath(id string) string {
-	return filepath.Join(projectsDir, id)
-}
-
-func getProjectMetaPath(id string) string {
-	return filepath.Join(getProjectPath(id), "meta.json")
-}
-
-func getComposePath(id string) string {
-	return filepath.Join(getProjectPath(id), "docker-compose.yml")
-}
-
-func ListProjects(c *fiber.Ctx) error {
-	entries, err := os.ReadDir(projectsDir)
+// ListProjects godoc
+// @Summary List all projects
+// @Description Get a list of all Docker Compose projects
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Success 200 {array} services.Project
+// @Router /projects [get]
+func (h *ProjectHandler) ListProjects(c *fiber.Ctx) error {
+	projects, err := h.Service.ListProjects()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return c.JSON([]Project{})
-		}
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	var projects []Project
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		project, err := loadProject(e.Name())
-		if err != nil {
-			continue
-		}
-		projects = append(projects, *project)
-	}
-
-	if projects == nil {
-		projects = []Project{}
 	}
 	return c.JSON(projects)
 }
 
-func loadProject(id string) (*Project, error) {
-	metaData, err := os.ReadFile(getProjectMetaPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	var project Project
-	if err := json.Unmarshal(metaData, &project); err != nil {
-		return nil, err
-	}
-
-	composeData, err := os.ReadFile(getComposePath(id))
-	if err == nil {
-		project.Compose = string(composeData)
-	}
-
-	return &project, nil
-}
-
-func saveProject(project *Project) error {
-	projectPath := getProjectPath(project.ID)
-	if err := os.MkdirAll(projectPath, 0755); err != nil {
-		return err
-	}
-
-	// Save metadata
-	metaData, err := json.MarshalIndent(project, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(getProjectMetaPath(project.ID), metaData, 0644); err != nil {
-		return err
-	}
-
-	// Save compose file
-	if err := os.WriteFile(getComposePath(project.ID), []byte(project.Compose), 0644); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func CreateProject(c *fiber.Ctx) error {
+// CreateProject godoc
+// @Summary Create a new project
+// @Description Create a new Docker Compose project
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Param project body CreateProjectRequest true "Project Data"
+// @Success 201 {object} services.Project
+// @Router /projects [post]
+func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 	var req CreateProjectRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
@@ -122,98 +58,81 @@ func CreateProject(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Name is required"})
 	}
 
-	// Validate YAML
-	var composeContent interface{}
-	if err := yaml.Unmarshal([]byte(req.Compose), &composeContent); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid YAML: " + err.Error()})
-	}
+	// Double check YAML here or trust service? Service does it.
+	// But service returns generalized error.
+	// We'll duplicate YAML check if we want specific "Invalid YAML" message or check err.
+	// Service unmarshals YAML.
 
-	now := time.Now()
-	project := &Project{
-		ID:          uuid.New().String(),
-		Name:        req.Name,
-		Description: req.Description,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		Compose:     req.Compose,
-		X:           req.X,
-		Y:           req.Y,
-	}
-
-	if err := saveProject(project); err != nil {
+	project, err := h.Service.CreateProject(req.Name, req.Description, req.Compose, req.X, req.Y)
+	if err != nil {
+		// Try to detect if it's a YAML error
+		if _, ok := err.(*yaml.TypeError); ok {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid YAML: " + err.Error()})
+		}
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.Status(201).JSON(project)
 }
 
-func GetProject(c *fiber.Ctx) error {
+// GetProject godoc
+// @Summary Get project by ID
+// @Description Get details of a specific project
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Param id path string true "Project ID"
+// @Success 200 {object} services.Project
+// @Router /projects/{id} [get]
+func (h *ProjectHandler) GetProject(c *fiber.Ctx) error {
 	id := c.Params("id")
-	project, err := loadProject(id)
+	project, err := h.Service.LoadProject(id)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return c.Status(404).JSON(fiber.Map{"error": "Project not found"})
-		}
+		// Need better way to check NotExist, maybe service should return specific error
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(project)
 }
 
-func UpdateProject(c *fiber.Ctx) error {
+// UpdateProject godoc
+// @Summary Update project
+// @Description Update an existing project
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Param id path string true "Project ID"
+// @Param project body CreateProjectRequest true "Project Data"
+// @Success 200 {object} services.Project
+// @Router /projects/{id} [put]
+func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 	id := c.Params("id")
-	project, err := loadProject(id)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return c.Status(404).JSON(fiber.Map{"error": "Project not found"})
-		}
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
 
 	var req CreateProjectRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	// Validate YAML if provided
-	if req.Compose != "" {
-		var composeContent interface{}
-		if err := yaml.Unmarshal([]byte(req.Compose), &composeContent); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "Invalid YAML: " + err.Error()})
-		}
-		project.Compose = req.Compose
-	}
-
-	if req.Name != "" {
-		project.Name = req.Name
-	}
-	if req.Description != "" {
-		project.Description = req.Description
-	}
-
-	// Update position if provided
-	project.X = req.X
-	project.Y = req.Y
-
-	project.UpdatedAt = time.Now()
-
-	if err := saveProject(project); err != nil {
+	project, err := h.Service.UpdateProject(id, req.Name, req.Description, req.Compose, req.X, req.Y)
+	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(project)
 }
 
-func DeleteProject(c *fiber.Ctx) error {
+// DeleteProject godoc
+// @Summary Delete project
+// @Description Delete a project by ID
+// @Tags projects
+// @Accept json
+// @Produce json
+// @Param id path string true "Project ID"
+// @Success 204 "No Content"
+// @Router /projects/{id} [delete]
+func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
 	id := c.Params("id")
-	projectPath := getProjectPath(id)
-
-	if _, err := os.Stat(projectPath); os.IsNotExist(err) {
-		return c.Status(404).JSON(fiber.Map{"error": "Project not found"})
-	}
-
-	if err := os.RemoveAll(projectPath); err != nil {
+	if err := h.Service.DeleteProject(id); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-
 	return c.SendStatus(204)
 }
