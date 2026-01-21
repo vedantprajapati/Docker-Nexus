@@ -37,8 +37,8 @@ import {
     Terminal,
     Layout,
 } from 'lucide-react';
-import RenameModal from './RenameModal';
-import ConfirmModal from './ConfirmModal';
+import RenameModal from '@/components/ui/RenameModal';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface ComposeGraphProps {
     projects: Project[];

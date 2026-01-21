@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"quantum-crab/services"
+	"docker-nexus/services"
 
 	"github.com/gofiber/fiber/v2"
 )

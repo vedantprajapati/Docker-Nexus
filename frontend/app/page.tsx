@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useStore } from '@/lib/store';
-import Sidebar from '@/components/Sidebar';
-import NewProjectModal from '@/components/NewProjectModal';
+import Sidebar from '@/components/sidebar/Sidebar';
+import NewProjectModal from '@/components/modals/NewProjectModal';
 import {
   Play,
   Square,
@@ -20,18 +20,18 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { parse, stringify } from 'yaml';
-import WorkloadDetail from '@/components/WorkloadDetail';
+import WorkloadDetail from '@/components/detail/WorkloadDetail';
 
 // Dynamic imports for heavy components
-const ComposeGraph = dynamic(() => import('@/components/ComposeGraph'), {
+const ComposeGraph = dynamic(() => import('@/components/graph/ComposeGraph'), {
   ssr: false,
   loading: () => <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>
 });
-const YamlEditor = dynamic(() => import('@/components/YamlEditor'), {
+const YamlEditor = dynamic(() => import('@/components/editor/YamlEditor'), {
   ssr: false,
   loading: () => <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>
 });
-const LLMChat = dynamic(() => import('@/components/LLMChat'), {
+const LLMChat = dynamic(() => import('@/components/chat/LLMChat'), {
   ssr: false,
   loading: () => <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>
 });

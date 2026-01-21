@@ -1,4 +1,4 @@
-module quantum-crab
+module docker-nexus
 
 go 1.24.0
 

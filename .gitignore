@@ -1,7 +1,5 @@
 # Dependencies
 node_modules/
-backend/projects/
-backend/server.exe
 
 # Next.js
 .next/
@@ -25,8 +23,23 @@ Thumbs.db
 *.swp
 *.swo
 
-# Project specific
+# Go binaries
+*.exe
 backend/bin/
+
+# Backend runtime data
+backend/projects/
+backend/deployments/
+backend/store.json
+
+# Docker Compose data volume
+data/
+
+# Frontend logs
 frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
+
+# Docusaurus
+docs/.docusaurus/
+docs/build/

@@ -3,7 +3,7 @@ package handlers
 import (
 	"os"
 
-	"quantum-crab/services"
+	"docker-nexus/services"
 
 	"github.com/gofiber/fiber/v2"
 )

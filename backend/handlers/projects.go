@@ -4,7 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gopkg.in/yaml.v3"
 
-	"quantum-crab/services"
+	"docker-nexus/services"
 )
 
 type ProjectHandler struct {

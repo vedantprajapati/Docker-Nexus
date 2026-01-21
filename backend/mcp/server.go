@@ -10,7 +10,7 @@ import (
 	"os"
 	"sync"
 
-	"quantum-crab/services"
+	"docker-nexus/services"
 )
 
 type Server struct {

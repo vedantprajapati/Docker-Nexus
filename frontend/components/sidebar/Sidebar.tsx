@@ -14,8 +14,8 @@ import {
     ChevronRight,
     Edit2,
 } from 'lucide-react';
-import ConfirmModal from './ConfirmModal';
-import RenameModal from './RenameModal';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import RenameModal from '@/components/ui/RenameModal';
 
 interface SidebarProps {
     onNewProject: () => void;
