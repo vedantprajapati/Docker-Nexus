@@ -7,30 +7,38 @@ import (
 	"docker-nexus/services"
 )
 
+// ProjectHandler manages Project-related HTTP requests.
+// It handles creating, reading, updating, and deleting projects (Docker Compose configurations).
 type ProjectHandler struct {
 	Service *services.ProjectService
 }
 
+// NewProjectHandler creates a new instance of ProjectHandler with the given service.
 func NewProjectHandler(s *services.ProjectService) *ProjectHandler {
 	return &ProjectHandler{Service: s}
 }
 
+// CreateProjectRequest defines the payload for creating or updating a project.
 type CreateProjectRequest struct {
+	// Name is the display name of the project. Required.
 	Name        string  `json:"name"`
+	// Description is an optional text description of the project.
 	Description string  `json:"description,omitempty"`
+	// Compose is the raw Docker Compose YAML content as a string.
 	Compose     string  `json:"compose"`
+	// X coordinate for the graph view.
 	X           float64 `json:"x,omitempty"`
+	// Y coordinate for the graph view.
 	Y           float64 `json:"y,omitempty"`
 }
 
-// ListProjects godoc
-// @Summary List all projects
-// @Description Get a list of all Docker Compose projects
-// @Tags projects
-// @Accept json
-// @Produce json
-// @Success 200 {array} services.Project
-// @Router /projects [get]
+// ListProjects retrieves all projects from the store.
+//
+// GET /api/projects
+//
+// Response:
+//   - 200 OK: Returns a JSON array of Project objects.
+//   - 500 Internal Server Error: If the store cannot be read.
 func (h *ProjectHandler) ListProjects(c *fiber.Ctx) error {
 	projects, err := h.Service.ListProjects()
 	if err != nil {
@@ -39,15 +47,17 @@ func (h *ProjectHandler) ListProjects(c *fiber.Ctx) error {
 	return c.JSON(projects)
 }
 
-// CreateProject godoc
-// @Summary Create a new project
-// @Description Create a new Docker Compose project
-// @Tags projects
-// @Accept json
-// @Produce json
-// @Param project body CreateProjectRequest true "Project Data"
-// @Success 201 {object} services.Project
-// @Router /projects [post]
+// CreateProject creates a new project.
+//
+// POST /api/projects
+//
+// Input:
+//   - JSON body matching CreateProjectRequest.
+//
+// Response:
+//   - 201 Created: Returns the created Project object.
+//   - 400 Bad Request: If Name is missing or YAML is invalid.
+//   - 500 Internal Server Error: If the project cannot be saved.
 func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 	var req CreateProjectRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -58,14 +68,8 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Name is required"})
 	}
 
-	// Double check YAML here or trust service? Service does it.
-	// But service returns generalized error.
-	// We'll duplicate YAML check if we want specific "Invalid YAML" message or check err.
-	// Service unmarshals YAML.
-
 	project, err := h.Service.CreateProject(req.Name, req.Description, req.Compose, req.X, req.Y)
 	if err != nil {
-		// Try to detect if it's a YAML error
 		if _, ok := err.(*yaml.TypeError); ok {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid YAML: " + err.Error()})
 		}
@@ -75,35 +79,39 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 	return c.Status(201).JSON(project)
 }
 
-// GetProject godoc
-// @Summary Get project by ID
-// @Description Get details of a specific project
-// @Tags projects
-// @Accept json
-// @Produce json
-// @Param id path string true "Project ID"
-// @Success 200 {object} services.Project
-// @Router /projects/{id} [get]
+// GetProject retrieves a single project by ID.
+//
+// GET /api/projects/:id
+//
+// Parameters:
+//   - id: The UUID of the project.
+//
+// Response:
+//   - 200 OK: Returns the Project object.
+//   - 500 Internal Server Error: If the project is not found (TODO: should return 404).
 func (h *ProjectHandler) GetProject(c *fiber.Ctx) error {
 	id := c.Params("id")
 	project, err := h.Service.LoadProject(id)
 	if err != nil {
-		// Need better way to check NotExist, maybe service should return specific error
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(project)
 }
 
-// UpdateProject godoc
-// @Summary Update project
-// @Description Update an existing project
-// @Tags projects
-// @Accept json
-// @Produce json
-// @Param id path string true "Project ID"
-// @Param project body CreateProjectRequest true "Project Data"
-// @Success 200 {object} services.Project
-// @Router /projects/{id} [put]
+// UpdateProject updates an existing project's details.
+//
+// PUT /api/projects/:id
+//
+// Parameters:
+//   - id: The UUID of the project.
+//
+// Input:
+//   - JSON body matching CreateProjectRequest (all fields optional, but typically sent fully).
+//
+// Response:
+//   - 200 OK: Returns the updated Project object.
+//   - 400 Bad Request: If body is invalid.
+//   - 500 Internal Server Error: If update fails.
 func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 	id := c.Params("id")
 
@@ -120,15 +128,16 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 	return c.JSON(project)
 }
 
-// DeleteProject godoc
-// @Summary Delete project
-// @Description Delete a project by ID
-// @Tags projects
-// @Accept json
-// @Produce json
-// @Param id path string true "Project ID"
-// @Success 204 "No Content"
-// @Router /projects/{id} [delete]
+// DeleteProject removes a project from the store.
+//
+// DELETE /api/projects/:id
+//
+// Parameters:
+//   - id: The UUID of the project.
+//
+// Response:
+//   - 204 No Content: Success.
+//   - 500 Internal Server Error: If deletion fails.
 func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if err := h.Service.DeleteProject(id); err != nil {

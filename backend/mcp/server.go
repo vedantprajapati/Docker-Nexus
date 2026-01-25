@@ -13,6 +13,8 @@ import (
 	"docker-nexus/services"
 )
 
+// Server implements the Model Context Protocol (MCP) server over standard input/output.
+// It exposes functionalities like listing projects, deploying/stopping projects, and manipulating groups to AI agents.
 type Server struct {
 	ProjectService *services.ProjectService
 	DockerService  *services.DockerService
@@ -20,6 +22,7 @@ type Server struct {
 	mutex          sync.Mutex
 }
 
+// NewServer creates a new MCP Server instance.
 func NewServer(p *services.ProjectService, d *services.DockerService, l *services.LLMService) *Server {
 	return &Server{
 		ProjectService: p,
@@ -28,7 +31,7 @@ func NewServer(p *services.ProjectService, d *services.DockerService, l *service
 	}
 }
 
-// ServeStdio handles JSON-RPC messages from stdin and writes to stdout
+// ServeStdio starts the server loop, reading JSON-RPC requests from Stdin and writing responses to Stdout.
 func (s *Server) ServeStdio() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -45,15 +48,13 @@ func (s *Server) ServeStdio() {
 	}
 }
 
+// handleMessage dispatches incoming JSON-RPC requests to appropriate handlers.
 func (s *Server) handleMessage(data []byte, writer io.Writer) {
 	var req JsonRpcRequest
 	if err := json.Unmarshal(data, &req); err != nil {
 		log.Printf("Invalid JSON: %v", err)
 		return
 	}
-
-	// Logging for debug (optional, be careful with stdio interference)
-	// log.Printf("Received: %s", req.Method)
 
 	var res interface{}
 	var err *JsonRpcError
@@ -72,7 +73,6 @@ func (s *Server) handleMessage(data []byte, writer io.Writer) {
 	case "ping":
 		res = map[string]string{}
 	default:
-		// Ignore notifications or unknown methods
 		if req.ID != nil {
 			err = &JsonRpcError{Code: -32601, Message: "Method not found"}
 		}
@@ -96,6 +96,7 @@ func (s *Server) handleMessage(data []byte, writer io.Writer) {
 	}
 }
 
+// handleInitialize handles the 'initialize' method.
 func (s *Server) handleInitialize(params json.RawMessage) (*McpInitializeResult, *JsonRpcError) {
 	return &McpInitializeResult{
 		ProtocolVersion: "2024-11-05",
@@ -110,6 +111,7 @@ func (s *Server) handleInitialize(params json.RawMessage) (*McpInitializeResult,
 	}, nil
 }
 
+// handleListTools returns the list of available tools for the AI agent.
 func (s *Server) handleListTools() (*McpListToolsResult, *JsonRpcError) {
 	tools := []McpTool{
 		{
@@ -164,10 +166,36 @@ func (s *Server) handleListTools() (*McpListToolsResult, *JsonRpcError) {
 				"required": ["compose", "instruction"]
 			}`),
 		},
+		{
+			Name:        "create_group",
+			Description: "Create a new project group with child projects",
+			InputSchema: json.RawMessage(`{
+				"type": "object", 
+				"properties": {
+					"name": {"type": "string", "description": "Group Name"},
+					"description": {"type": "string", "description": "Group Description"},
+					"projectIds": {"type": "array", "items": {"type": "string"}, "description": "List of child project IDs to include"}
+				},
+				"required": ["name", "projectIds"]
+			}`),
+		},
+		{
+			Name:        "add_to_group",
+			Description: "Add a project to an existing group",
+			InputSchema: json.RawMessage(`{
+				"type": "object", 
+				"properties": {
+					"groupId": {"type": "string", "description": "ID of the parent group"},
+					"childId": {"type": "string", "description": "ID of the child project to add"}
+				},
+				"required": ["groupId", "childId"]
+			}`),
+		},
 	}
 	return &McpListToolsResult{Tools: tools}, nil
 }
 
+// handleCallTool executes a specific tool requested by the AI agent.
 func (s *Server) handleCallTool(params json.RawMessage) (*McpCallToolResult, *JsonRpcError) {
 	var callParams McpCallToolParams
 	if err := json.Unmarshal(params, &callParams); err != nil {
@@ -224,6 +252,40 @@ func (s *Server) handleCallTool(params json.RawMessage) (*McpCallToolResult, *Js
 
 		result, err = s.LLMService.ModifyCompose(compose, instruction, provider)
 
+	case "create_group":
+		name, _ := callParams.Arguments["name"].(string)
+		desc, _ := callParams.Arguments["description"].(string)
+		pIdsInterface, _ := callParams.Arguments["projectIds"].([]interface{})
+		var projectIds []string
+		for _, v := range pIdsInterface {
+			if s, ok := v.(string); ok {
+				projectIds = append(projectIds, s)
+			}
+		}
+		
+		proj, e := s.ProjectService.CreateGroup(name, desc, projectIds, 0, 0)
+		if e != nil {
+			err = e
+		} else {
+			// Return ID
+			result = fmt.Sprintf("Group Created. ID: %s", proj.ID)
+		}
+
+	case "add_to_group":
+		groupId, _ := callParams.Arguments["groupId"].(string)
+		childId, _ := callParams.Arguments["childId"].(string)
+		
+		if groupId == "" || childId == "" {
+			err = fmt.Errorf("groupId and childId are required")
+		} else {
+			_, e := s.ProjectService.AddProjectToGroup(groupId, childId)
+			if e != nil {
+				err = e
+			} else {
+				result = "Added to group successfully"
+			}
+		}
+
 	default:
 		return nil, &JsonRpcError{Code: -32601, Message: fmt.Sprintf("Tool not found: %s", callParams.Name)}
 	}
@@ -240,6 +302,7 @@ func (s *Server) handleCallTool(params json.RawMessage) (*McpCallToolResult, *Js
 	}, nil
 }
 
+// handleListResources returns valid resources for the AI agent (list of projects as files).
 func (s *Server) handleListResources() (*McpListResourcesResult, *JsonRpcError) {
 	projects, err := s.ProjectService.ListProjects()
 	if err != nil {
@@ -259,6 +322,7 @@ func (s *Server) handleListResources() (*McpListResourcesResult, *JsonRpcError) 
 	return &McpListResourcesResult{Resources: resources}, nil
 }
 
+// handleReadResource allows the AI to read the content of a project file via URI project://<ID>/docker-compose.yml
 func (s *Server) handleReadResource(params json.RawMessage) (*McpReadResourceResult, *JsonRpcError) {
 	var readParams McpReadResourceParams
 	if err := json.Unmarshal(params, &readParams); err != nil {
@@ -269,25 +333,14 @@ func (s *Server) handleReadResource(params json.RawMessage) (*McpReadResourceRes
 	var id string
 	n, err := fmt.Sscanf(readParams.URI, "project://%s/docker-compose.yml", &id)
 
-	// Handle cases where ID might contain more slashes or parsing is tricky
 	if err != nil || n != 1 {
-		// Try manual parsing if simple scan fails
+		// Manual fallback if Sscanf behaves unexpectedly with UUIDs
 		if len(readParams.URI) > 10 && readParams.URI[:10] == "project://" {
-			// rest := readParams.URI[10:]
-			// Assumes ID is everything up to the next slash
-			// But UUID shouldn't have slash.
-			// Wait, if scanf fails but manual parsing works?
-			// The format is fixed for now.
+			// Intentionally empty block, fall through to robust check below
 		}
-		// If scanning the ID directly fails because of trailing stuff
-		// Using Sscanf with string format might be brittle if id contains / which it shouldn't (UUID).
-		// Note that Sscanf stops at space, but %s matches non-whitespace.
-		// However, the format string has explicit suffix.
 	}
 
-	// A more robust URI parser is better, but let's try a simpler approach if scanf fails
 	if id == "" {
-		// Assuming URI format: project://<ID>/docker-compose.yml
 		prefix := "project://"
 		suffix := "/docker-compose.yml"
 		if len(readParams.URI) > len(prefix)+len(suffix) &&

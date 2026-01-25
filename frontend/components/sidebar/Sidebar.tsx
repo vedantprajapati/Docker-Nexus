@@ -13,9 +13,11 @@ import {
     FileCode,
     ChevronRight,
     Edit2,
+    Settings,
 } from 'lucide-react';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import RenameModal from '@/components/ui/RenameModal';
+import SettingsModal from '@/components/modals/SettingsModal';
 
 interface SidebarProps {
     onNewProject: () => void;
@@ -24,17 +26,32 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onNewProject, onTitleClick, onProjectSelect }: SidebarProps) {
-    const { projects, currentProject, fetchProjects, selectProject, deleteProject, createProject, updateProject } = useStore();
+    const { projects, currentProject, fetchProjects, selectProject, deleteProject, createProject, updateProject, config, fetchConfig } = useStore();
     const [showGroupModal, setShowGroupModal] = useState(false);
     const [showGroupNameModal, setShowGroupNameModal] = useState(false);
     const [showNewGroupModal, setShowNewGroupModal] = useState(false);
     const [showAddToGroupModal, setShowAddToGroupModal] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     const [pendingGroup, setPendingGroup] = useState<{ sourceId: string; targetId: string; sourceName: string; targetName: string } | null>(null);
     const [pendingAddToGroup, setPendingAddToGroup] = useState<{ sourceId: string; targetId: string; sourceName: string; targetName: string } | null>(null);
+    const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
+
+    const toggleCollapse = (projectId: string) => {
+        setCollapsedNodes(prev => {
+            const next = new Set(prev);
+            if (next.has(projectId)) {
+                next.delete(projectId);
+            } else {
+                next.add(projectId);
+            }
+            return next;
+        });
+    };
 
     useEffect(() => {
         fetchProjects();
-    }, [fetchProjects]);
+        fetchConfig();
+    }, [fetchProjects, fetchConfig]);
 
     const handleCreateGroup = async (sourceId: string, targetId: string) => {
         const sourceProject = projects.find(p => p.id === sourceId);
@@ -135,8 +152,7 @@ export default function Sidebar({ onNewProject, onTitleClick, onProjectSelect }:
   - ../${sourceId}/docker-compose.yml
   - ../${targetId}/docker-compose.yml
 
-services:
-  # Additional services for the group can be added here
+services: {}
 `;
         await createProject(
             groupName,
@@ -153,8 +169,7 @@ services:
             const groupYAML = `include:
   # Drag projects here to add them to this group
 
-services:
-  # Additional services for the group can be added here
+services: {}
 `;
             await createProject(
                 groupName,
@@ -301,10 +316,11 @@ services:
                 <div className="flex gap-2">
                     <button
                         onClick={onNewProject}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-nier-dark text-nier-beige text-[11px] font-bold uppercase tracking-widest hover:opacity-90 transition-all border-b-2 border-nier-dark/20"
+                        disabled={config && !config.features.editCompose}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-nier-dark text-nier-beige text-[11px] font-bold uppercase tracking-widest hover:opacity-90 transition-all border-b-2 border-nier-dark/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Plus className="w-4 h-4" />
-                        New Project
+                        New Composition
                     </button>
                     <button
                         onClick={() => setShowNewGroupModal(true)}
@@ -366,11 +382,11 @@ services:
                 }}
             >
                 <div className="px-3 mb-2">
-                    <p className="text-[10px] text-nier-muted font-bold uppercase tracking-[0.2em]">Projects</p>
+                    <p className="text-[10px] text-nier-muted font-bold uppercase tracking-[0.2em]">Compositions</p>
                 </div>
                 {projects.length === 0 ? (
                     <div className="text-center py-10 text-nier-muted text-[11px] italic">
-                        Empty project stack
+                        Empty composition library
                     </div>
                 ) : (
                     <div className="space-y-1">
@@ -410,8 +426,10 @@ services:
                                             }}
                                             onDelete={() => deleteProject(proj.id)}
                                             onCreateGroup={handleCreateGroup}
+                                            isCollapsed={collapsedNodes.has(proj.id)}
+                                            onToggleCollapse={() => toggleCollapse(proj.id)}
                                         />
-                                        {childIds.length > 0 && (
+                                        {childIds.length > 0 && !collapsedNodes.has(proj.id) && (
                                             <div className="ml-4 border-l-2 border-nier-dark/10">
                                                 {projChildren.map(({ project: childProj, children: grandchildIds }) =>
                                                     renderProject(childProj, grandchildIds, lvl + 1)
@@ -442,8 +460,8 @@ services:
 
             <ConfirmModal
                 isOpen={showGroupModal}
-                title="Create Project Group"
-                message={pendingGroup ? `Create a project group including "${pendingGroup.sourceName}" and "${pendingGroup.targetName}"?` : ''}
+                title="Create Composition Group"
+                message={pendingGroup ? `Create a composition group including "${pendingGroup.sourceName}" and "${pendingGroup.targetName}"?` : ''}
                 confirmText="Create Group"
                 onConfirm={handleConfirmGroup}
                 onCancel={() => {
@@ -455,7 +473,7 @@ services:
             <RenameModal
                 isOpen={showGroupNameModal}
                 currentName={pendingGroup ? `${pendingGroup.sourceName} & ${pendingGroup.targetName} Group` : ''}
-                title="Create Project Group"
+                title="Create Stack Composition"
                 confirmText="Create"
                 onClose={() => {
                     setShowGroupNameModal(false);
@@ -472,6 +490,21 @@ services:
                 onClose={() => setShowNewGroupModal(false)}
                 onRename={handleNewGroup}
             />
+
+            <div className="p-4 border-t border-nier-border/50 bg-nier-paper">
+                <button
+                    onClick={() => setShowSettings(true)}
+                    className="flex items-center gap-3 w-full px-4 py-2 text-nier-muted hover:text-nier-dark hover:bg-nier-dark/5 rounded transition-all group"
+                >
+                    <Settings className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Settings</span>
+                </button>
+            </div>
+
+            <SettingsModal
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+            />
         </div>
     );
 }
@@ -484,9 +517,11 @@ interface ProjectItemProps {
     onSelect: () => void;
     onDelete: () => void;
     onCreateGroup?: (sourceId: string, targetId: string) => void;
+    isCollapsed?: boolean;
+    onToggleCollapse?: () => void;
 }
 
-function ProjectItem({ project, isSelected, level, hasChildren, onSelect, onDelete, onCreateGroup }: ProjectItemProps) {
+function ProjectItem({ project, isSelected, level, hasChildren, onSelect, onDelete, onCreateGroup, isCollapsed, onToggleCollapse }: ProjectItemProps) {
     const [showActions, setShowActions] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -574,6 +609,17 @@ function ProjectItem({ project, isSelected, level, hasChildren, onSelect, onDele
             onMouseEnter={() => setShowActions(true)}
             onMouseLeave={() => setShowActions(false)}
         >
+            {hasChildren && onToggleCollapse && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleCollapse();
+                    }}
+                    className={`p-1 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                >
+                    <ChevronRight className={`w-3.5 h-3.5 ${isSelected ? 'text-nier-beige' : 'text-nier-muted'}`} />
+                </button>
+            )}
             <Folder className={`w-4 h-4 ${isSelected ? 'text-nier-beige' : hasChildren ? 'text-nier-accent' : 'text-nier-muted'}`} />
             <div className="flex-1 min-w-0">
                 <p className={`text-[11px] font-bold uppercase tracking-wide truncate ${isSelected ? 'text-nier-beige' : 'text-nier-dark'}`}>

@@ -94,6 +94,21 @@ Uses an LLM to modify a Docker Compose file based on natural language instructio
     - `instruction` (string, required): The modification instruction.
 - **Returns**: The modified YAML content.
 
+### `create_group`
+Creates a new project group containing specified child projects.
+- **Input**:
+    - `name` (string, required): Name of the group.
+    - `description` (string, optional): Description.
+    - `projectIds` (array<string>, required): List of child project IDs.
+- **Returns**: Status and Group ID.
+
+### `add_to_group`
+Adds an existing project to a group.
+- **Input**:
+    - `groupId` (string, required): ID of the parent group.
+    - `childId` (string, required): ID of the child project.
+- **Returns**: Success message.
+
 ## Resources
 
 Resources allow agents to read the current state of files.

@@ -13,12 +13,14 @@ import (
 type DockerHandler struct {
 	Service        *services.DockerService
 	ProjectService *services.ProjectService
+	configService  *services.ConfigService
 }
 
-func NewDockerHandler(s *services.DockerService, p *services.ProjectService) *DockerHandler {
+func NewDockerHandler(s *services.DockerService, p *services.ProjectService, c *services.ConfigService) *DockerHandler {
 	return &DockerHandler{
 		Service:        s,
 		ProjectService: p,
+		configService:  c,
 	}
 }
 
@@ -32,6 +34,13 @@ func NewDockerHandler(s *services.DockerService, p *services.ProjectService) *Do
 // @Success 200 {object} services.DeployResponse
 // @Router /projects/{id}/deploy [post]
 func (h *DockerHandler) DeployProject(c *fiber.Ctx) error {
+	config := h.configService.GetConfig()
+	if !config.Features.DockerControl {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Docker control is disabled by administrator",
+		})
+	}
+
 	id := c.Params("id")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -61,6 +70,13 @@ func (h *DockerHandler) DeployProject(c *fiber.Ctx) error {
 // @Success 200 {object} services.DeployResponse
 // @Router /projects/{id}/stop [post]
 func (h *DockerHandler) StopProject(c *fiber.Ctx) error {
+	config := h.configService.GetConfig()
+	if !config.Features.DockerControl {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Docker control is disabled by administrator",
+		})
+	}
+
 	id := c.Params("id")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -76,6 +92,44 @@ func (h *DockerHandler) StopProject(c *fiber.Ctx) error {
 
 	return c.JSON(services.DeployResponse{
 		Message: "Stack stopped successfully",
+		Output:  output,
+	})
+}
+
+// RestartProject godoc
+// @Summary Restart project or service
+// @Description Restart a Docker Compose project or a specific service
+// @Tags docker
+// @Accept json
+// @Produce json
+// @Param id path string true "Project ID"
+// @Param service query string false "Service Name"
+// @Success 200 {object} services.DeployResponse
+// @Router /projects/{id}/restart [post]
+func (h *DockerHandler) RestartProject(c *fiber.Ctx) error {
+	config := h.configService.GetConfig()
+	if !config.Features.DockerControl {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Docker control is disabled by administrator",
+		})
+	}
+
+	id := c.Params("id")
+	service := c.Query("service", "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	output, err := h.Service.RestartProject(ctx, id, service)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error":  "Failed to restart: " + err.Error(),
+			"output": output,
+		})
+	}
+
+	return c.JSON(services.DeployResponse{
+		Message: "Restart successful",
 		Output:  output,
 	})
 }

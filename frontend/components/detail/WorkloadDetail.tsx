@@ -15,10 +15,20 @@ import {
     Clock,
     Zap
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import LogsModal from '../modals/LogsModal';
+
+const TerminalModal = dynamic(() => import('../modals/TerminalModal'), {
+    ssr: false
+});
 
 export default function WorkloadDetail() {
-    const { projects, selectedNodeId, setSelectedNodeId, liveContainers, isLiveMode } = useStore();
+    const { projects, selectedNodeId, setSelectedNodeId, liveContainers, isLiveMode, restartService } = useStore();
+    const [showLogsModal, setShowLogsModal] = useState(false);
+    const [showTerminalModal, setShowTerminalModal] = useState(false);
+    const [isRestarting, setIsRestarting] = useState(false);
+    const [restartStatus, setRestartStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     const detail = useMemo(() => {
         if (!selectedNodeId) return null;
@@ -90,6 +100,11 @@ export default function WorkloadDetail() {
                             <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-900/10 text-green-700 border border-green-700/30">
                                 <CheckCircle className="w-3.5 h-3.5" />
                                 <span className="text-[10px] font-bold uppercase tracking-widest">Online</span>
+                            </div>
+                        ) : restartStatus === 'success' ? (
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-900/10 text-emerald-700 border border-emerald-700/30">
+                                <Zap className="w-3.5 h-3.5" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Restarted</span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-1.5 px-2 py-0.5 bg-nier-muted/10 text-nier-muted border border-nier-muted/30">
@@ -167,7 +182,7 @@ export default function WorkloadDetail() {
             <div className="p-6 border-t border-nier-dark/10 bg-nier-paper/30 space-y-3">
                 <button
                     disabled={!isRunning}
-                    onClick={() => alert('Terminal access for ' + serviceName + ' would open here. (Backend TTY proxy required)')}
+                    onClick={() => setShowTerminalModal(true)}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-nier-dark text-nier-beige text-[11px] font-bold uppercase tracking-[0.2em] hover:opacity-90 transition-all disabled:opacity-30"
                 >
                     <Terminal className="w-4 h-4" />
@@ -175,21 +190,58 @@ export default function WorkloadDetail() {
                 </button>
                 <div className="grid grid-cols-2 gap-3">
                     <button
-                        onClick={() => alert('Logs for ' + serviceName + ' would stream here.')}
+                        onClick={() => setShowLogsModal(true)}
                         className="flex items-center justify-center gap-2 px-4 py-3 border border-nier-dark text-nier-dark text-[10px] font-bold uppercase tracking-widest hover:bg-nier-dark hover:text-nier-beige transition-all"
                     >
                         <Activity className="w-3.5 h-3.5" />
                         Logs
                     </button>
                     <button
-                        onClick={() => alert('Restarting ' + serviceName + '...')}
-                        className="flex items-center justify-center gap-2 px-4 py-3 border border-nier-dark text-nier-dark text-[10px] font-bold uppercase tracking-widest hover:bg-nier-dark hover:text-nier-beige transition-all"
+                        onClick={async () => {
+                            setIsRestarting(true);
+                            setRestartStatus('idle');
+                            try {
+                                await restartService(project.id, serviceName);
+                                setRestartStatus('success');
+                                setTimeout(() => setRestartStatus('idle'), 5000);
+                            } catch (err) {
+                                setRestartStatus('error');
+                                alert(`Failed to restart: ${(err as Error).message}`);
+                            } finally {
+                                setIsRestarting(false);
+                            }
+                        }}
+                        disabled={isRestarting}
+                        className="flex items-center justify-center gap-2 px-4 py-3 border border-nier-dark text-nier-dark text-[10px] font-bold uppercase tracking-widest hover:bg-nier-dark hover:text-nier-beige transition-all disabled:opacity-50"
                     >
-                        <Zap className="w-3.5 h-3.5" />
-                        Restart
+                        {isRestarting ? (
+                            <Activity className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                            <Zap className="w-3.5 h-3.5" />
+                        )}
+                        {isRestarting ? 'Restarting...' : 'Restart'}
                     </button>
                 </div>
             </div>
+
+            {/* Logs Modal */}
+            {showLogsModal && (
+                <LogsModal
+                    isOpen={showLogsModal}
+                    projectId={project.id}
+                    serviceName={serviceName}
+                    onClose={() => setShowLogsModal(false)}
+                />
+            )}
+            {/* Terminal Modal */}
+            {showTerminalModal && (
+                <TerminalModal
+                    isOpen={showTerminalModal}
+                    projectId={project.id}
+                    serviceName={serviceName}
+                    onClose={() => setShowTerminalModal(false)}
+                />
+            )}
         </div>
     );
 }

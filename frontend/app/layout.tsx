@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
+import ThemeProvider from '@/components/providers/ThemeProvider';
+
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
@@ -23,7 +25,9 @@ export default function RootLayout({
         className={`${inter.variable} antialiased`}
         suppressHydrationWarning
       >
-        {children}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

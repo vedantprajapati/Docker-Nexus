@@ -12,10 +12,12 @@ import (
 	"time"
 )
 
-type LLMService struct{}
+type LLMService struct {
+	configService *ConfigService
+}
 
-func NewLLMService() *LLMService {
-	return &LLMService{}
+func NewLLMService(cfg *ConfigService) *LLMService {
+	return &LLMService{configService: cfg}
 }
 
 const systemPrompt = `You are a Docker Compose expert. You help users modify their docker-compose.yml files based on natural language instructions.
@@ -55,15 +57,20 @@ type OpenAIResponse struct {
 }
 
 func (s *LLMService) ModifyCompose(compose, instruction, provider string) (string, error) {
+	config := s.configService.GetConfig()
+	if provider == "" {
+		provider = config.LLM.Provider
+	}
+	// Fallback if config is empty
 	if provider == "" {
 		provider = "ollama"
 	}
 
 	switch provider {
 	case "openai":
-		return s.callOpenAI(compose, instruction)
+		return s.callOpenAI(compose, instruction, config.LLM.Model)
 	case "ollama":
-		return s.callOllama(compose, instruction)
+		return s.callOllama(compose, instruction, config.LLM.Model)
 	case "anthropic":
 		return "", fmt.Errorf("anthropic provider not yet implemented")
 	case "gemini":
@@ -74,6 +81,11 @@ func (s *LLMService) ModifyCompose(compose, instruction, provider string) (strin
 }
 
 func (s *LLMService) CategorizeServices(compose, provider string) (map[string]string, error) {
+	config := s.configService.GetConfig()
+	if provider == "" {
+		provider = config.LLM.Provider
+	}
+	// Fallback
 	if provider == "" {
 		provider = "ollama"
 	}
@@ -90,15 +102,16 @@ Return ONLY a JSON object where keys are service names and values are the catego
 	var err error
 
 	if provider == "openai" {
-		response, err = s.callOpenAIPure(userPrompt)
+		response, err = s.callOpenAIPure(userPrompt, config.LLM.Model)
 	} else if provider == "anthropic" || provider == "gemini" {
 		return nil, fmt.Errorf("%s provider not yet implemented", provider)
 	} else {
-		response, err = s.callOllamaPure(userPrompt)
+		response, err = s.callOllamaPure(userPrompt, config.LLM.Model)
 	}
 
 	if err != nil {
-		return nil, err
+		fmt.Printf("LLM categorization task failed: %v. Falling back to empty categories.\n", err)
+		return map[string]string{}, nil
 	}
 
 	// Cleanup response to ensure it's valid JSON
@@ -117,16 +130,20 @@ Return ONLY a JSON object where keys are service names and values are the catego
 	return categories, nil
 }
 
-func (s *LLMService) callOpenAI(compose, instruction string) (string, error) {
+func (s *LLMService) callOpenAI(compose, instruction, model string) (string, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		return "", fmt.Errorf("OPENAI_API_KEY not set")
 	}
 
+	if model == "" {
+		model = "gpt-4"
+	}
+
 	userPrompt := fmt.Sprintf("Here is the current docker-compose.yml:\n\n%s\n\nModification requested: %s\n\nProvide the modified docker-compose.yml:", compose, instruction)
 
 	reqBody := OpenAIRequest{
-		Model: "gpt-4",
+		Model: model,
 		Messages: []OpenAIMessage{
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: userPrompt},
@@ -136,14 +153,18 @@ func (s *LLMService) callOpenAI(compose, instruction string) (string, error) {
 	return s.sendOpenAIRequest(apiKey, reqBody)
 }
 
-func (s *LLMService) callOpenAIPure(prompt string) (string, error) {
+func (s *LLMService) callOpenAIPure(prompt, model string) (string, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		return "", fmt.Errorf("OPENAI_API_KEY not set")
 	}
 
+	if model == "" {
+		model = "gpt-4o"
+	}
+
 	reqBody := OpenAIRequest{
-		Model: "gpt-4o",
+		Model: model,
 		Messages: []OpenAIMessage{
 			{Role: "user", Content: prompt},
 		},
@@ -196,19 +217,23 @@ func (s *LLMService) sendOpenAIRequest(apiKey string, reqBody OpenAIRequest) (st
 	return openAIResp.Choices[0].Message.Content, nil
 }
 
-func (s *LLMService) callOllama(compose, instruction string) (string, error) {
+func (s *LLMService) callOllama(compose, instruction, model string) (string, error) {
 	prompt := systemPrompt + "\n\nHere is the current docker-compose.yml:\n\n" + compose + "\n\nModification requested: " + instruction + "\n\nProvide the modified docker-compose.yml:"
-	return s.callOllamaPure(prompt)
+	return s.callOllamaPure(prompt, model)
 }
 
-func (s *LLMService) callOllamaPure(prompt string) (string, error) {
+func (s *LLMService) callOllamaPure(prompt, model string) (string, error) {
 	ollamaURL := os.Getenv("OLLAMA_URL")
 	if ollamaURL == "" {
 		ollamaURL = "http://localhost:11434"
 	}
 
+	if model == "" {
+		model = "llama3.2"
+	}
+
 	reqBody := map[string]interface{}{
-		"model":  "llama3.2",
+		"model":  model,
 		"prompt": prompt,
 		"stream": false,
 	}

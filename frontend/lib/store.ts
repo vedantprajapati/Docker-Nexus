@@ -3,6 +3,24 @@ import { Project } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
+export interface AppConfig {
+    features: {
+        aiEnabled: boolean;
+        dockerControl: boolean;
+        editCompose: boolean;
+    };
+    llm: {
+        provider: string;
+        model: string;
+    };
+    theme: {
+        name: string;
+        colors: {
+            [key: string]: string;
+        };
+    };
+}
+
 interface AppState {
     projects: Project[];
     currentProject: Project | null;
@@ -26,6 +44,15 @@ interface AppState {
     setIsLiveMode: (isLive: boolean) => void;
     modifyWithLLM: (instruction: string) => Promise<string>;
     categorizeServices: () => Promise<Record<string, string>>;
+    getProjectLogs: (projectId: string, service?: string, tail?: string) => Promise<string>;
+    restartService: (projectId: string, service: string) => Promise<void>;
+    createGroup: (name: string, description: string, projectIds: string[], x?: number, y?: number) => Promise<Project>;
+    addProjectToGroup: (groupId: string, childProjectId: string) => Promise<Project>;
+
+    // Config
+    config: AppConfig | null;
+    fetchConfig: () => Promise<void>;
+    updateConfig: (config: AppConfig) => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -235,6 +262,132 @@ export const useStore = create<AppState>((set, get) => ({
             return {};
         }
     },
+    getProjectLogs: async (projectId, service, tail = '100') => {
+        try {
+            const params = new URLSearchParams({ tail });
+            if (service) params.append('service', service);
+            const res = await fetch(`${API_URL}/api/projects/${projectId}/logs?${params}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to fetch logs');
+            return data.logs;
+        } catch (err) {
+            console.error('Logs error:', err);
+            throw err;
+        }
+    },
+
+    restartService: async (projectId, service) => {
+        try {
+            const params = new URLSearchParams();
+            if (service) params.append('service', service);
+            const res = await fetch(`${API_URL}/api/projects/${projectId}/restart?${params}`, {
+                method: 'POST',
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to restart service');
+            // Refresh containers after restart
+            get().fetchLiveContainers();
+        } catch (err) {
+            console.error('Restart error:', err);
+            throw err;
+        }
+    },
+
+    createGroup: async (name, description, projectIds, x = 0, y = 0) => {
+        set({ loading: true, error: null });
+        try {
+            const res = await fetch(`${API_URL}/api/projects/group`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description, projectIds, x, y }),
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Failed to create group');
+            }
+            const group = await res.json();
+            set((state) => ({
+                projects: [...state.projects, group],
+                currentProject: group,
+                loading: false,
+            }));
+            return group;
+        } catch (err) {
+            set({ error: (err as Error).message, loading: false });
+            throw err;
+        }
+    },
+
+    addProjectToGroup: async (groupId, childProjectId) => {
+        set({ loading: true, error: null });
+        try {
+            const res = await fetch(`${API_URL}/api/projects/${groupId}/group`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ childProjectId }),
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Failed to add project to group');
+            }
+            const updatedGroup = await res.json();
+            set((state) => ({
+                projects: state.projects.map(p => p.id === groupId ? updatedGroup : p),
+                currentProject: state.currentProject?.id === groupId ? updatedGroup : state.currentProject,
+                loading: false,
+            }));
+            return updatedGroup;
+        } catch (err) {
+            set({ error: (err as Error).message, loading: false });
+            throw err;
+        }
+    },
+
     setSelectedNodeId: (id) => set({ selectedNodeId: id }),
     setIsLiveMode: (isLive) => set({ isLiveMode: isLive }),
+
+    config: null,
+
+    fetchConfig: async () => {
+        try {
+            const res = await fetch(`${API_URL}/api/config`);
+            if (!res.ok) throw new Error('Failed to fetch config');
+            const config = await res.json();
+            set({ config });
+
+            // Apply theme
+            if (config.theme && config.theme.colors) {
+                const root = document.documentElement;
+                Object.entries(config.theme.colors).forEach(([key, value]) => {
+                    root.style.setProperty(`--${key}`, value as string);
+                });
+            }
+        } catch (err) {
+            console.error('Config fetch error:', err);
+        }
+    },
+
+    updateConfig: async (newConfig) => {
+        try {
+            const res = await fetch(`${API_URL}/api/config`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newConfig),
+            });
+            if (!res.ok) throw new Error('Failed to update config');
+            const config = await res.json();
+            set({ config });
+
+            // Apply theme
+            if (config.theme && config.theme.colors) {
+                const root = document.documentElement;
+                Object.entries(config.theme.colors).forEach(([key, value]) => {
+                    root.style.setProperty(`--${key}`, value as string);
+                });
+            }
+        } catch (err) {
+            set({ error: (err as Error).message });
+            throw err;
+        }
+    },
 }));

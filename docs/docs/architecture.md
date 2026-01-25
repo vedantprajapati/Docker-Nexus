@@ -1,73 +1,56 @@
-# System Architecture
+# Docker Nexus Architecture
 
-Docker Nexus is designed as a modern, decoupled web application that leverages the power of the Docker CLI while providing a rich, interactive user interface.
+## Overview
+Docker Nexus is a modern Docker Compose management interface that provides a visual and AI-augmented experience for managing local development stacks. It uses a **Frontend** (Next.js) for the UI and a **Backend** (Go Fiber) for orchestration.
 
-## High-Level Overview
+## Core Concepts
+
+### 1. Projects
+A "Project" is the fundamental unit. It represents a single `docker-compose.yml` configuration.
+- Stored in `store.json`.
+- Identified by a UUID.
+- Materialized to `deployments/{UUID}/docker-compose.yml` upon deployment.
+
+### 2. Groups (New)
+A "Group" is simply a Project that uses the **Docker Compose `include`** feature to bundle other projects.
+- **Mechanism**: The parent project's `docker-compose.yml` lists child projects in an `include` block.
+- **Pathing**: Child projects are referenced via relative paths: `../{ChildUUID}/docker-compose.yml`.
+- **Behavior**: Deploying the Group deploys the parent and all included children as a unified stack.
+- **Isolation**: Child projects can still be deployed individually.
+
+### 3. AI and MCP
+The system exposes a **Model Context Protocol (MCP)** server over stdio. This allows AI agents (like Claude/Cursor) to:
+- List projects.
+- Deploy/Stop projects.
+- **Create Groups**: Programmatically group projects together.
+- Modify Compose files using an internal LLM service.
+
+## Architecture Diagram
 
 ```mermaid
 graph TD
-    User["User"]
-
-    subgraph "Frontend"
-        FE["Next.js App"]
+    Client[Frontend / AI Agent] --> API[Go Backend API]
+    API --> Store[JSON Project Store]
+    API --> Docker[Docker Engine]
+    
+    subgraph Filesystem
+        StoreFile[store.json]
+        DeployDir[deployments/]
+        DeployDir --> ProjA[UUID-A/docker-compose.yml]
+        DeployDir --> ProjB[UUID-B/docker-compose.yml]
+        DeployDir --> GroupG[UUID-G/docker-compose.yml]
     end
 
-    subgraph "Backend"
-        API["Go API"]
-        PS["Project Service"]
-        DS["Docker Service"]
-        LS["LLM Service"]
-    end
-
-    subgraph "Storage"
-        DB[("store.json")]
-        FS["File System /deployments"]
-    end
-
-    subgraph "External: Docker"
-        DC["Docker Daemon / CLI"]
-    end
-
-    subgraph "External: AI Providers"
-        AIP["Anthropic / Gemini / OpenAI"]
-    end
-
-    User -->|"Browser"| FE
-    User -->|"Stdio (MCP)"| API
-    FE -->|"Fiber (HTTP)"| API
-
-    API --> PS
-    API --> DS
-    API --> LS
-
-    PS -->|"Read/Write"| DB
-    DS -->|"Write Config"| FS
-    DS -->|"Manage / Poll Health"| DC
-    LS -->|"API Calls"| AIP
+    GroupG -.->|include| ProjA
+    GroupG -.->|include| ProjB
 ```
 
-## Detailed Components
+## Known Limitations (Flaws)
 
-| Component | Technology | Description |
-|-----------|------------|-------------|
-| **Frontend** | Next.js 14 (App Router) | React-based UI with Zustand for state, React Flow for graph visualization, and Tailwind CSS for styling. |
-| **Backend** | Go (Fiber) | REST API server + MCP interface. Exposes endpoints for projects, Docker, and LLM operations. |
-| **Project Service** | Go | Manages project CRUD operations and persistence to `store.json`. |
-| **Docker Service** | Go | Wraps the `docker compose` CLI for deploy, stop, status, and logs. |
-| **LLM Service** | Go | Sends prompts to AI providers and validates returned YAML. |
-| **Storage** | JSON File | `store.json` stores project metadata; `/deployments/` holds materialized Compose files. |
+1.  **Referential Integrity**: Deleting a project that is included in a group will break the group's deployment (file not found).
+2.  **Deployment Directory**: The system assumes a flat structure in `deployments/`. Moving files manually will break grouping.
+3.  **Concurrency**: While individual file writes are atomic, complex multi-project restructuring via AI might race if not carefully orchestrated.
 
-## Key Concepts
-
-| Concept | Description |
-|---------|-------------|
-| **Execution Modes** | The backend runs in either **HTTP mode** (web server on port 8080) or **MCP mode** (stdio for AI agents). Set via `MCP_MODE` env var. |
-| **Config Sync** | The process of writing virtual YAML from `store.json` to physical `docker-compose.yml` files in `/deployments/{id}/`. |
-| **Live Tracking** | Status is polled via `docker compose ps`; logs are streamed via `docker compose logs -f` over SSE. |
-| **LLM Integration** | User prompts + Compose context are sent to AI providers; returned YAML is validated before saving. |
-
-## Deployment Strategy
-Docker Nexus itself is containerized.
-- **Frontend Container**: Nginx serving static export or Node.js server.
-- **Backend Container**: Alpine-based Go binary.
-- **Docker Socket**: The host's `/var/run/docker.sock` is mounted into the backend container, giving it control over the host's Docker daemon.
+## API & CLI
+- **API**: RESTful API at `/api/projects`.
+- **MCP**: JSON-RPC over Stdio for agent integration.

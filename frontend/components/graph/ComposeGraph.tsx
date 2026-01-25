@@ -36,7 +36,9 @@ import {
     Activity,
     Terminal,
     Layout,
+    Folder,
 } from 'lucide-react';
+import dagre from 'dagre';
 import RenameModal from '@/components/ui/RenameModal';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 
@@ -156,90 +158,97 @@ function ProjectGroupNode({ data }: NodeProps) {
         stopProject(data.id).catch(console.error);
     };
 
+    if (data.isParent) {
+        return (
+            <div className="flex items-center gap-3 p-3 bg-nier-beige border-2 border-dashed border-nier-dark shadow-[4px_4px_0px_0px_rgba(69,65,56,0.2)] min-w-[200px] cursor-pointer hover:bg-white transition-colors group">
+                <Handle type="target" position={Position.Top} className="!bg-nier-dark !w-2 !h-2" />
+                <Folder className="w-8 h-8 text-nier-dark fill-nier-dark/10" />
+                <div className="flex flex-col">
+                    <span className="text-xs font-bold text-nier-dark uppercase tracking-widest leading-none mb-1">Group</span>
+                    <span className="text-sm font-black text-nier-dark uppercase tracking-tighter truncate max-w-[150px]">{data.label}</span>
+                </div>
+
+                <div className="absolute -top-3 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowRenameModal(true);
+                        }}
+                        className="p-1 bg-nier-dark text-nier-beige rounded-none hover:opacity-80"
+                    >
+                        <Edit2 className="w-3 h-3" />
+                    </button>
+                    <button
+                        onClick={handleDeploy}
+                        className="p-1 bg-nier-dark text-nier-beige rounded-none hover:opacity-80"
+                    >
+                        <Play className="w-3 h-3" />
+                    </button>
+                </div>
+                <Handle type="source" position={Position.Bottom} className="!bg-nier-dark !w-2 !h-2" />
+
+                <RenameModal
+                    isOpen={showRenameModal}
+                    currentName={data.label}
+                    onClose={() => setShowRenameModal(false)}
+                    onRename={handleRename}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="w-full h-full p-4 relative transition-all" style={{
-            border: `4px solid ${currentColor}${data.isParent ? '80' : '40'}`,
-            backgroundColor: `${currentColor}${data.isParent ? '15' : '05'}`,
-            pointerEvents: 'none', // Allow clicking through to children
+            border: `4px solid ${currentColor}40`,
+            backgroundColor: `${currentColor}05`,
+            minHeight: '100%',
         }}>
-            <div className="absolute -top-7 left-0 flex items-center gap-2 z-50 project-drag-handle cursor-move" style={{
-                pointerEvents: 'auto', // Title bar is always interactive
-            }}>
+            <div className="absolute -top-4 left-4 flex items-center gap-2 z-50 project-drag-handle cursor-move">
                 <div className={`px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-nier-beige`} style={{
                     backgroundColor: currentColor,
                 }}>
-                    {data.isParent ? 'Group: ' : 'Project: '}{data.label}
+                    Project: {data.label}
                 </div>
-                <button
-                    onMouseDown={(e) => {
-                        e.stopPropagation();
-                    }}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setShowRenameModal(true);
-                    }}
-                    className="p-1 px-2 bg-nier-beige border border-nier-dark text-nier-dark hover:bg-nier-dark hover:text-nier-beige transition-all shadow-sm cursor-pointer"
-                    title="Rename Project"
-                    type="button"
-                >
-                    <Edit2 className="w-3 h-3" />
-                </button>
-                {data.isParent && (
-                    <div className="relative">
-                        <button
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                setShowColorPicker(!showColorPicker);
-                            }}
-                            className="p-1 px-2 bg-nier-beige border border-nier-dark text-nier-dark hover:bg-nier-dark hover:text-nier-beige transition-all shadow-sm cursor-pointer"
-                            title="Change Color"
-                            type="button"
-                        >
-                            <Palette className="w-3 h-3" />
-                        </button>
-                        {showColorPicker && (
-                            <div className="absolute top-full left-0 mt-1 bg-nier-paper border-2 border-nier-dark shadow-lg p-2 grid grid-cols-4 gap-1 z-[9999]">
-                                {colors.map((color) => (
-                                    <button
-                                        key={color.value}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            updateProject(data.id, { color: color.value });
-                                            setShowColorPicker(false);
-                                        }}
-                                        className="w-6 h-6 border-2 border-nier-dark hover:scale-110 transition-transform"
-                                        style={{ backgroundColor: color.value }}
-                                        title={color.name}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-                <div className="flex gap-1 ml-2">
+                {/* Actions */}
+                <div className="flex bg-white border border-nier-dark">
                     <button
-                        onClick={handleDeploy}
-                        disabled={loading}
-                        className="p-1 px-2 min-w-[70px] bg-nier-dark text-nier-beige border border-nier-dark hover:opacity-90 disabled:opacity-30 transition-all flex items-center justify-center gap-1.5 text-[9px] font-bold uppercase tracking-widest shadow-md active:translate-y-0.5"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowRenameModal(true);
+                        }}
+                        className="p-1 hover:bg-nier-dark hover:text-white transition-colors"
+                        title="Rename"
                     >
-                        {loading ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Play className="w-2.5 h-2.5" />}
-                        {loading ? '...' : 'Deploy'}
+                        <Edit2 className="w-3 h-3" />
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeploy();
+                        }}
+                        disabled={loading}
+                        className="p-1 hover:bg-nier-dark hover:text-white transition-colors"
+                        title="Deploy"
+                    >
+                        {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                     </button>
                     {isRunning && (
                         <button
-                            onClick={handleStop}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleStop();
+                            }}
                             disabled={loading}
-                            className="p-1 px-2 bg-rose-50 border border-rose-500 text-rose-600 hover:bg-rose-500 hover:text-white disabled:opacity-30 transition-all flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest shadow-md active:translate-y-0.5"
+                            className="p-1 hover:bg-rose-500 hover:text-white transition-colors text-rose-600"
+                            title="Stop"
                         >
-                            <Square className="w-2.5 h-2.5" />
-                            Stop
+                            <Square className="w-3 h-3" />
                         </button>
                     )}
                 </div>
             </div>
+            {/* Background Content */}
+            <Handle type="target" position={Position.Top} className="!bg-nier-dark !w-3 !h-1 !rounded-none" />
 
             <RenameModal
                 isOpen={showRenameModal}
@@ -323,7 +332,7 @@ const ComposeGraph = forwardRef(({
         const { createProject, fetchProjects } = useStore.getState();
 
         try {
-            const yaml = `include:\n  - ../${sourceId}/docker-compose.yml\n  - ../${targetId}/docker-compose.yml\n\nservices:\n`;
+            const yaml = `include:\n  - ../${sourceId}/docker-compose.yml\n  - ../${targetId}/docker-compose.yml\n\nservices: {}\n`;
             await createProject(name, 'Group', yaml, pos.x, pos.y); // Position support if needed
             await fetchProjects();
         } catch (e) { console.error(e) }
@@ -335,12 +344,10 @@ const ComposeGraph = forwardRef(({
     const { nodes, edges } = useMemo(() => {
         const allNodes: Node[] = [];
         const allEdges: Edge[] = [];
-        let cumulativeX = 0;
-        const projectGap = 100;
 
-        // 1. Build Hierarchy Map and Helper Functions
+        // 1. Build Maps
         const projectMap = new Map<string, Project>(projects.map(p => [p.id, p]));
-        const childrenMap = new Map<string, string[]>(); // parentId -> childIds
+        const childrenMap = new Map<string, string[]>();
 
         projects.forEach(project => {
             try {
@@ -355,129 +362,99 @@ const ComposeGraph = forwardRef(({
             } catch { }
         });
 
-        // 2. Helper to Calculate Bounding Box Recursively
-        const getProjectBounds = (projectId: string): { x: number, y: number, width: number, height: number } | null => {
-            const project = projectMap.get(projectId);
-            if (!project) return null;
+        // 2. Setup Dagre Graph
+        const g = new dagre.graphlib.Graph();
+        g.setGraph({ rankdir: 'TB', nodesep: 100, ranksep: 120 });
+        g.setDefaultEdgeLabel(() => ({}));
 
-            const children = childrenMap.get(projectId) || [];
+        // 3. Add Nodes to Dagre
+        projects.forEach(project => {
+            const children = childrenMap.get(project.id) || [];
+            const isParent = children.length > 0;
 
-            if (children.length > 0) {
-                // It's a group - recursion
-                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                let hasValidChild = false;
+            let width = 250;
+            let height = 100;
 
-                children.forEach(childId => {
-                    const bounds = getProjectBounds(childId);
-                    if (bounds) {
-                        hasValidChild = true;
-                        minX = Math.min(minX, bounds.x);
-                        minY = Math.min(minY, bounds.y);
-                        maxX = Math.max(maxX, bounds.x + bounds.width);
-                        maxY = Math.max(maxY, bounds.y + bounds.height);
-                    }
-                });
-
-                if (!hasValidChild) return null;
-
-                const padding = 80;
-                return {
-                    x: minX - padding,
-                    y: minY - padding - 60, // Header space
-                    width: (maxX - minX) + (padding * 2),
-                    height: (maxY - minY) + (padding * 2) + 60
-                };
-            } else {
-                // It's a leaf project
-                let width = 500, height = 300;
+            if (!isParent) {
+                // Calculate Leaf Project Size based on content
                 try {
                     const doc = parse(project.compose) as ComposeFile;
                     if (doc?.services) {
                         const services = Object.keys(doc.services);
-                        const cols = Math.ceil(Math.sqrt(services.length));
-                        const rows = Math.ceil(services.length / cols);
-                        width = cols * 300 + 100;
-                        height = rows * 200 + 100;
+                        if (services.length > 0) {
+                            const cols = Math.ceil(Math.sqrt(services.length));
+                            const rows = Math.ceil(services.length / cols);
+                            width = Math.max(300, cols * 300 + 100);
+                            height = Math.max(200, rows * 200 + 100);
+                        } else {
+                            width = 300;
+                            height = 200;
+                        }
                     }
                 } catch { }
-
-                // Initial layouting if coords are 0,0
-                let x = project.x || 0;
-                let y = project.y || 0;
-                if (x === 0 && y === 0) {
-                    // Temporary layout logic would go here if we were persisting it back
-                    // For now, we rely on the fact that dragging updates x,y
-                    // Or we should update cumulativeX here if we want auto-layout for leaves
-                    x = cumulativeX;
-                    cumulativeX += width + projectGap;
-                }
-
-                return { x, y, width, height };
             }
-        };
 
-        // 3. Process Projects (Leafs first for cumulativeX, then Groups?)
-        // Actually, we iterate all and generate nodes.
-        // We need a helper to determine depth for Z-Index (Root groups at back)
-        const getDepth = (id: string): number => {
-            let depth = 0;
-            for (const [parent, children] of childrenMap.entries()) {
-                if (children.includes(id)) {
-                    depth = Math.max(depth, getDepth(parent) + 1);
+            g.setNode(project.id, { width, height, isParent });
+        });
+
+        // 4. Add Edges to Dagre
+        childrenMap.forEach((children, parentId) => {
+            children.forEach(childId => {
+                // Verify child exists
+                if (projectMap.has(childId)) {
+                    g.setEdge(parentId, childId);
                 }
-            }
-            return depth;
-        };
+            });
+        });
 
-        // Generate Nodes
-        projects.forEach(project => {
-            const bounds = getProjectBounds(project.id);
-            if (!bounds) return;
+        // 5. Run Layout
+        dagre.layout(g);
 
-            const children = childrenMap.get(project.id) || [];
-            const isParent = children.length > 0;
-            const depth = getDepth(project.id);
+        // 6. Generate ReactFlow Elements
+        g.nodes().forEach((id) => {
+            const nodeInfo = g.node(id) as any;
+            const project = projectMap.get(id);
+            if (!project) return;
 
-            // Project Group Node
+            // Adjust position: Dagre gives center x/y, ReactFlow uses top-left
+            // If project.x/y is set (dragged), use that?
+            // Actually, keep Dagre's initial layout unless we want to support persistence of tree drags.
+            // For now, let's force Dagre layout to ensure the tree looks correct initially.
+            // If persistence is needed, we'd check if x/y are non-zero. But usually a tree layout recalculation is desired.
+
+            const x = nodeInfo.x - nodeInfo.width / 2;
+            const y = nodeInfo.y - nodeInfo.height / 2;
+
             allNodes.push({
-                id: isParent ? `parent-group-${project.id}` : `project-${project.id}`,
+                id: `project-${id}`,
                 type: 'projectGroup',
                 data: {
                     label: project.name,
                     id: project.id,
-                    isParent,
+                    isParent: nodeInfo.isParent,
                     color: project.color,
-                    depth
                 },
-                position: { x: bounds.x, y: bounds.y },
+                position: { x, y },
                 style: {
-                    width: bounds.width,
-                    height: bounds.height,
-                    // Z-Index: Lower depth (parents) = Lower Index?
-                    // Visual: Parent needs to be behind Child.
-                    // Parent (depth 0) -> Child (depth 1)
-                    // So Parent Z < Child Z.
-                    // Leaves have depth N.
-                    zIndex: isParent ? (depth * 10) - 100 : 0
+                    width: nodeInfo.width,
+                    height: nodeInfo.height,
                 },
                 dragHandle: '.project-drag-handle',
                 draggable: true,
             });
 
-            // Render Services for Leaf Projects
-            if (!isParent) {
+            // If it's a leaf, add internal services
+            if (!nodeInfo.isParent) {
                 try {
                     const compose = parse(project.compose) as ComposeFile;
                     if (compose?.services) {
                         const services = Object.entries(compose.services);
                         const cols = Math.ceil(Math.sqrt(services.length));
-
                         services.forEach(([name, config], index) => {
                             const row = Math.floor(index / cols);
                             const col = index % cols;
                             const serviceId = `${project.id}-${name}`;
 
-                            // ... (Category logic same as before)
                             const projectCategories = categories?.[project.id] || {};
                             let category = projectCategories[name];
 
@@ -493,14 +470,13 @@ const ComposeGraph = forwardRef(({
                             }
 
                             const liveInfo = liveContainers?.find((c: any) =>
-                                c.names.some((cn: string) => cn.includes(name) && cn.includes(project.id.split('-')[0])) ||
-                                c.labels?.['com.docker.compose.service'] === name
+                                c.names.some((cn: string) => cn.includes(name) && cn.includes(project.id.split('-')[0]))
                             );
 
                             allNodes.push({
                                 id: serviceId,
                                 type: 'service',
-                                parentNode: `project-${project.id}`, // Parent is the project node
+                                parentNode: `project-${project.id}`,
                                 extent: 'parent',
                                 position: { x: 50 + col * 300, y: 50 + row * 200 },
                                 data: {
@@ -511,22 +487,21 @@ const ComposeGraph = forwardRef(({
                                     category: category,
                                     isLiveMode: isLiveMode,
                                     liveStatus: liveInfo?.state,
+                                    project: project.id // Pass project ID for internal unique ID logic? Not needed for display.
                                 },
                                 zIndex: 10,
                             });
 
-                            // Edges
                             let dependsOn: string[] = [];
                             if (Array.isArray(config.depends_on)) dependsOn = config.depends_on;
                             else if (config.depends_on) dependsOn = Object.keys(config.depends_on);
-
-                            dependsOn.forEach((dep) => {
+                            dependsOn.forEach(dep => {
                                 allEdges.push({
                                     id: `${project.id}-${dep}-${name}`,
                                     source: `${project.id}-${dep}`,
                                     target: serviceId,
                                     animated: true,
-                                    style: { stroke: '#454138', strokeWidth: 2 },
+                                    style: { stroke: '#454138', strokeWidth: 2, strokeDasharray: '5,5' },
                                     markerEnd: { type: MarkerType.ArrowClosed, color: '#454138' },
                                 });
                             });
@@ -534,6 +509,19 @@ const ComposeGraph = forwardRef(({
                     }
                 } catch { }
             }
+        });
+
+        // 7. Generate Hierarchy Edges (Group -> Project)
+        g.edges().forEach((e) => {
+            allEdges.push({
+                id: `edge-${e.v}-${e.w}`,
+                source: `project-${e.v}`,
+                target: `project-${e.w}`,
+                type: 'smoothstep',
+                animated: false,
+                style: { stroke: '#B25037', strokeWidth: 2 },
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#B25037' },
+            });
         });
 
         return { nodes: allNodes, edges: allEdges };
@@ -780,7 +768,10 @@ const ComposeGraph = forwardRef(({
                         }
                     }
                 }}
-                onInit={(instance) => { rfInstance.current = instance; }}
+                onInit={(instance) => {
+                    rfInstance.current = instance;
+                    setTimeout(() => instance.fitView({ padding: 0.5, duration: 800 }), 100);
+                }}
                 nodeTypes={nodeTypes}
                 fitView
             >

@@ -1,41 +1,25 @@
-# Website
+# Docker Nexus Documentation
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+## Running the Documentation
 
-### Installation
+You can run the documentation site in isolation using Docker or locally via NPM.
 
+### Option 1: Docker (Recommended)
+Run the following command from the `docs/` directory:
+```bash
+docker compose up -d
 ```
-$ yarn
+The site will be available at http://localhost:3051.
+
+### Option 2: Local NPM
+If you have Node.js installed:
+```bash
+npm install
+npm start
 ```
+The site will be available at http://localhost:3000 (default Docusaurus port).
 
-### Local Development
-
-```
-$ yarn start
-```
-
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
-
-### Build
-
-```
-$ yarn build
-```
-
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
-
-### Deployment
-
-Using SSH:
-
-```
-$ USE_SSH=true yarn deploy
-```
-
-Not using SSH:
-
-```
-$ GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+## Structure
+- `docs/`: Markdown content files.
+- `src/`: Custom React components and pages.
+- `docusaurus.config.ts`: Site configuration.

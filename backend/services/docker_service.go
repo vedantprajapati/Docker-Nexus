@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 )
 
@@ -67,12 +66,9 @@ func (s *DockerService) DeployProject(ctx context.Context, projectID string) (st
 
 func (s *DockerService) StopProject(ctx context.Context, projectID string) (string, error) {
 	deployDir := s.getDeployDir()
-	projectPath := filepath.Join(deployDir, projectID)
-
-	// We assume files exist if stopping. If not, maybe we can't stop?
-	// But if directory is missing, docker compose down won't work anyway.
-	if _, err := os.Stat(projectPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("project not deployed (deployment directory missing)")
+	projectPath, err := s.ProjectService.Materialize(projectID, deployDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve project path: %w", err)
 	}
 
 	dockerCmd := s.getDockerCommand()
@@ -87,30 +83,88 @@ func (s *DockerService) StopProject(ctx context.Context, projectID string) (stri
 	return string(output), nil
 }
 
-func (s *DockerService) GetProjectStatus(projectID string) ([]ServiceStatus, error) {
+func (s *DockerService) RestartProject(ctx context.Context, projectID, serviceName string) (string, error) {
 	deployDir := s.getDeployDir()
-	projectPath := filepath.Join(deployDir, projectID)
+	projectPath, err := s.ProjectService.Materialize(projectID, deployDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve project path: %w", err)
+	}
 
 	dockerCmd := s.getDockerCommand()
+	args := append(dockerCmd, "compose", "restart")
+	if serviceName != "" {
+		args = append(args, serviceName)
+	}
+
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Dir = projectPath
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(output), err
+	}
+	return string(output), nil
+}
+
+func (s *DockerService) GetProjectStatus(projectID string) ([]ServiceStatus, error) {
+	deployDir := s.getDeployDir()
+	projectPath, err := s.ProjectService.Materialize(projectID, deployDir)
+	if err != nil {
+		return []ServiceStatus{}, nil
+	}
+
+	dockerCmd := s.getDockerCommand()
+	// Use json format for reliable parsing
 	args := append(dockerCmd, "compose", "ps", "--format", "json")
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Dir = projectPath
 
 	output, err := cmd.Output()
 	if err != nil {
+		// If command fails, maybe no containers running or project not found
 		return []ServiceStatus{}, nil
 	}
 
-	var statuses []ServiceStatus
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+	// Docker Compose ps --format json can output:
+	// 1. A JSON array (newer versions)
+	// 2. JSON Lines (older versions or specific contexts)
+
+	var containers []map[string]interface{}
+
+	// Try parsing as array first
+	if err := json.Unmarshal(output, &containers); err != nil {
+		// Fallback to JSON Lines
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			var c map[string]interface{}
+			if json.Unmarshal([]byte(line), &c) == nil {
+				containers = append(containers, c)
+			}
 		}
+	}
+
+	var statuses []ServiceStatus
+	for _, c := range containers {
+		// Prefer "Service" field, fallback to "Name"
+		name, _ := c["Service"].(string)
+		if name == "" {
+			name, _ = c["Name"].(string)
+		}
+
+		state, _ := c["State"].(string)
+		if state == "" {
+			state, _ = c["Status"].(string)
+		}
+
+		health, _ := c["Health"].(string)
+
 		statuses = append(statuses, ServiceStatus{
-			Name:   line,
-			Status: "running",
+			Name:   name,
+			Status: state,
+			Health: health,
 		})
 	}
 	return statuses, nil
@@ -118,7 +172,10 @@ func (s *DockerService) GetProjectStatus(projectID string) ([]ServiceStatus, err
 
 func (s *DockerService) GetProjectLogs(projectID, service, tail string) (string, error) {
 	deployDir := s.getDeployDir()
-	projectPath := filepath.Join(deployDir, projectID)
+	projectPath, err := s.ProjectService.Materialize(projectID, deployDir)
+	if err != nil {
+		return "", err
+	}
 
 	args := []string{"compose", "logs", "--tail", tail}
 	if service != "" {
@@ -139,7 +196,10 @@ func (s *DockerService) GetProjectLogs(projectID, service, tail string) (string,
 
 func (s *DockerService) StreamProjectLogs(ctx context.Context, projectID, service, tail string) (<-chan string, error) {
 	deployDir := s.getDeployDir()
-	projectPath := filepath.Join(deployDir, projectID)
+	projectPath, err := s.ProjectService.Materialize(projectID, deployDir)
+	if err != nil {
+		return nil, err
+	}
 
 	args := []string{"compose", "logs", "-f", "--tail", tail}
 	if service != "" {
@@ -224,4 +284,23 @@ func (s *DockerService) ListAllContainers() ([]ContainerInfo, error) {
 		containers = append(containers, container)
 	}
 	return containers, nil
+}
+
+func (s *DockerService) GetContainerID(projectID, serviceName string) (string, error) {
+	deployDir := s.getDeployDir()
+	projectPath, err := s.ProjectService.Materialize(projectID, deployDir)
+	if err != nil {
+		return "", err
+	}
+
+	dockerCmd := s.getDockerCommand()
+	args := append(dockerCmd, "compose", "ps", "-q", serviceName)
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Dir = projectPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }

@@ -5,6 +5,7 @@ export interface Project {
     createdAt: string;
     updatedAt: string;
     compose: string;
+    hostPath?: string;
     x: number;
     y: number;
     color?: string; // For group color customization

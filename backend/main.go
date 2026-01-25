@@ -1,6 +1,8 @@
 package main
 
 import (
+	"database/sql"
+	"fmt"
 	"log"
 	"os"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/swagger" // swagger handler
+	"github.com/gofiber/websocket/v2"
 	"github.com/joho/godotenv"
 
 	"docker-nexus/handlers"
@@ -28,10 +31,29 @@ func main() {
 		log.Println("No .env file found, using system environment variables")
 	}
 
+	// Database Connection
+	dbHost := os.Getenv("DB_HOST")
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+	connStr := fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable", dbHost, dbUser, dbPass, dbName)
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Wait for DB to be ready? Retry logic might be needed in production,
+	// but docker-compose depends_on isn't enough for DB readiness.
+	// We'll let it fail fast or rely on a retry wrapper if needed.
+	if err := db.Ping(); err != nil {
+		log.Printf("Warning: Database unreachable: %v", err)
+	}
+
 	// Initialize Services
-	projectService := services.NewProjectService()
+	configService := services.NewConfigService()
+	projectService := services.NewProjectService(db)
 	dockerService := services.NewDockerService(projectService)
-	llmService := services.NewLLMService()
+	llmService := services.NewLLMService(configService)
 
 	// Check execution mode
 	// MCP_MODE=true runs the MCP server (spawned by AI agents)
@@ -42,7 +64,7 @@ func main() {
 	}
 
 	// Default: Run HTTP Server
-	runServer(projectService, dockerService, llmService)
+	runServer(projectService, dockerService, llmService, configService)
 }
 
 func runMCP(p *services.ProjectService, d *services.DockerService, l *services.LLMService) {
@@ -51,11 +73,13 @@ func runMCP(p *services.ProjectService, d *services.DockerService, l *services.L
 	server.ServeStdio()
 }
 
-func runServer(p *services.ProjectService, d *services.DockerService, l *services.LLMService) {
+func runServer(p *services.ProjectService, d *services.DockerService, l *services.LLMService, c *services.ConfigService) {
 	// Initialize Handlers
 	projectHandler := handlers.NewProjectHandler(p)
-	dockerHandler := handlers.NewDockerHandler(d, p)
+	dockerHandler := handlers.NewDockerHandler(d, p, c)
 	llmHandler := handlers.NewLLMHandler(l)
+	terminalHandler := handlers.NewTerminalHandler(d)
+	configHandler := handlers.NewConfigHandler(c)
 
 	app := fiber.New(fiber.Config{
 		AppName: "Docker Nexus API",
@@ -74,15 +98,28 @@ func runServer(p *services.ProjectService, d *services.DockerService, l *service
 	// API Routes
 	api := app.Group("/api")
 
+	// Terminal WebSocket (must be before middleware that might block it or handled carefully)
+	app.Use("/api/projects/:id/terminal", func(c *fiber.Ctx) error {
+		if websocket.IsWebSocketUpgrade(c) {
+			c.Locals("allowed", true)
+			return c.Next()
+		}
+		return fiber.ErrUpgradeRequired
+	})
+	app.Get("/api/projects/:id/terminal", websocket.New(terminalHandler.HandleTerminal))
+
 	// Projects
 	api.Get("/projects", projectHandler.ListProjects)
 	api.Post("/projects", projectHandler.CreateProject)
 	api.Get("/projects/:id", projectHandler.GetProject)
 	api.Put("/projects/:id", projectHandler.UpdateProject)
 	api.Delete("/projects/:id", projectHandler.DeleteProject)
+	api.Post("/projects/group", projectHandler.CreateGroup)
+	api.Post("/projects/:id/group", projectHandler.AddProjectToGroup)
 
 	// Docker operations
 	api.Post("/projects/:id/deploy", dockerHandler.DeployProject)
+	api.Post("/projects/:id/restart", dockerHandler.RestartProject)
 	api.Post("/projects/:id/stop", dockerHandler.StopProject)
 	api.Get("/projects/:id/status", dockerHandler.GetProjectStatus)
 	api.Get("/projects/:id/logs", dockerHandler.GetProjectLogs)
@@ -93,6 +130,10 @@ func runServer(p *services.ProjectService, d *services.DockerService, l *service
 
 	// Global Docker Status
 	api.Get("/docker/containers", dockerHandler.ListAllContainers)
+
+	// Config
+	api.Get("/config", configHandler.GetConfig)
+	api.Put("/config", configHandler.UpdateConfig)
 
 	// Health check
 	api.Get("/health", func(c *fiber.Ctx) error {

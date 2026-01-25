@@ -1,26 +1,48 @@
 services:
   frontend:
-    build: ./frontend
+    container_name: docker-nexus-frontend
+    build:
+      context: ./frontend
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8097
     ports:
-      - "3000:3000"
+      - "3050:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080/api
+      - NEXT_PUBLIC_API_URL=http://localhost:8097/api
     depends_on:
       - backend
 
   backend:
+    container_name: docker-nexus-backend
     build: ./backend
     ports:
-      - "8080:8080"
+      - "8097:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./data/store.json:/app/store.json
       - ./data/deployments:/app/deployments
     environment:
       - DEPLOY_DIR=/app/deployments
       - PORT=8080
+      - DB_HOST=postgres
+      - DB_USER=nexus
+      - DB_PASSWORD=nexus_secret
+      - DB_NAME=nexus_db
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
       - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: docker-nexus-postgres
+    environment:
+      - POSTGRES_USER=nexus
+      - POSTGRES_PASSWORD=nexus_secret
+      - POSTGRES_DB=nexus_db
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
