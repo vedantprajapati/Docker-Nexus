@@ -7,9 +7,11 @@ Docker Nexus is a modern Docker Compose management interface that provides a vis
 
 ### 1. Projects
 A "Project" is the fundamental unit. It represents a single `docker-compose.yml` configuration.
-- Stored in `store.json`.
+- Stored in **PostgreSQL**.
 - Identified by a UUID.
-- Materialized to `deployments/{UUID}/docker-compose.yml` upon deployment.
+- **Hybrid Deployment**: 
+    - Internal projects are materialized to `data/deployments/{UUID}/docker-compose.yml`.
+    - External projects are run directly from their original `host_path`.
 
 ### 2. Groups (New)
 A "Group" is simply a Project that uses the **Docker Compose `include`** feature to bundle other projects.
@@ -30,26 +32,24 @@ The system exposes a **Model Context Protocol (MCP)** server over stdio. This al
 ```mermaid
 graph TD
     Client[Frontend / AI Agent] --> API[Go Backend API]
-    API --> Store[JSON Project Store]
+    API --> Store[(PostgreSQL DB)]
     API --> Docker[Docker Engine]
     
     subgraph Filesystem
-        StoreFile[store.json]
-        DeployDir[deployments/]
-        DeployDir --> ProjA[UUID-A/docker-compose.yml]
-        DeployDir --> ProjB[UUID-B/docker-compose.yml]
-        DeployDir --> GroupG[UUID-G/docker-compose.yml]
+        DeployDir[data/deployments/]
+        ExternalDir[/Host Path/]
+        DeployDir --> ProjA[Internal Proj]
+        ExternalDir --> ProjB[External Proj]
     end
 
-    GroupG -.->|include| ProjA
+    GroupG[Groups] -.->|include| ProjA
     GroupG -.->|include| ProjB
 ```
 
 ## Known Limitations (Flaws)
 
 1.  **Referential Integrity**: Deleting a project that is included in a group will break the group's deployment (file not found).
-2.  **Deployment Directory**: The system assumes a flat structure in `deployments/`. Moving files manually will break grouping.
-3.  **Concurrency**: While individual file writes are atomic, complex multi-project restructuring via AI might race if not carefully orchestrated.
+2.  **Environment Sync**: Changes made directly to files on disk for External Projects are detected by Docker, but YAML edits in Nexus must be manually synced/saved.
 
 ## API & CLI
 - **API**: RESTful API at `/api/projects`.

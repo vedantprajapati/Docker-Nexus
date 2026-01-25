@@ -41,7 +41,7 @@ export default function RenameModal({ isOpen, currentName, onClose, onRename, ti
 
     const modalContent = (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-nier-paper border-4 border-nier-dark shadow-[16px_16px_0px_0px_rgba(69,65,56,0.3)] w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-nier-paper border-4 border-nier-dark shadow-[16px_16px_0px_0px_rgba(69,65,56,0.3)] w-full max-w-md mx-4" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="bg-nier-dark text-nier-beige px-6 py-4 flex items-center justify-between border-b-2 border-nier-dark">
                     <h2 className="font-bold uppercase tracking-[0.2em] text-sm">{title}</h2>
@@ -63,7 +63,7 @@ export default function RenameModal({ isOpen, currentName, onClose, onRename, ti
                         ref={inputRef}
                         type="text"
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                         className="w-full px-4 py-3 bg-white border-2 border-nier-dark text-nier-dark font-bold uppercase tracking-wide text-sm focus:outline-none focus:border-nier-accent transition-colors"
                         placeholder="Enter project name"
                         autoFocus

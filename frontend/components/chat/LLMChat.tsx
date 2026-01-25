@@ -53,12 +53,12 @@ export default function LLMChat({ onApplyModification }: LLMChatProps) {
                     modifiedYaml,
                 },
             ]);
-        } catch (err) {
+        } catch (err: any) {
             setMessages((prev) => [
                 ...prev,
                 {
                     role: 'assistant',
-                    content: `Sorry, I encountered an error: ${(err as Error).message}`,
+                    content: `Sorry, I encountered an error: ${err.message || 'Unknown error'}`,
                 },
             ]);
         } finally {

@@ -113,86 +113,7 @@ func (s *Server) handleInitialize(params json.RawMessage) (*McpInitializeResult,
 
 // handleListTools returns the list of available tools for the AI agent.
 func (s *Server) handleListTools() (*McpListToolsResult, *JsonRpcError) {
-	tools := []McpTool{
-		{
-			Name:        "list_projects",
-			Description: "List all Docker Compose projects",
-			InputSchema: json.RawMessage(`{"type": "object", "properties": {}}`),
-		},
-		{
-			Name:        "deploy_project",
-			Description: "Deploy a Docker Compose project",
-			InputSchema: json.RawMessage(`{
-				"type": "object", 
-				"properties": {
-					"id": {"type": "string", "description": "Project ID"}
-				},
-				"required": ["id"]
-			}`),
-		},
-		{
-			Name:        "stop_project",
-			Description: "Stop a Docker Compose project",
-			InputSchema: json.RawMessage(`{
-				"type": "object", 
-				"properties": {
-					"id": {"type": "string", "description": "Project ID"}
-				},
-				"required": ["id"]
-			}`),
-		},
-		{
-			Name:        "get_logs",
-			Description: "Get logs for a project or service",
-			InputSchema: json.RawMessage(`{
-				"type": "object", 
-				"properties": {
-					"id": {"type": "string", "description": "Project ID"},
-					"service": {"type": "string", "description": "Service name (optional)"},
-					"tail": {"type": "string", "description": "Number of lines to tail (default 100)"}
-				},
-				"required": ["id"]
-			}`),
-		},
-		{
-			Name:        "modify_compose",
-			Description: "Modify a Docker Compose file using AI",
-			InputSchema: json.RawMessage(`{
-				"type": "object", 
-				"properties": {
-					"compose": {"type": "string", "description": "Current YAML content"},
-					"instruction": {"type": "string", "description": "Instructions for modification"}
-				},
-				"required": ["compose", "instruction"]
-			}`),
-		},
-		{
-			Name:        "create_group",
-			Description: "Create a new project group with child projects",
-			InputSchema: json.RawMessage(`{
-				"type": "object", 
-				"properties": {
-					"name": {"type": "string", "description": "Group Name"},
-					"description": {"type": "string", "description": "Group Description"},
-					"projectIds": {"type": "array", "items": {"type": "string"}, "description": "List of child project IDs to include"}
-				},
-				"required": ["name", "projectIds"]
-			}`),
-		},
-		{
-			Name:        "add_to_group",
-			Description: "Add a project to an existing group",
-			InputSchema: json.RawMessage(`{
-				"type": "object", 
-				"properties": {
-					"groupId": {"type": "string", "description": "ID of the parent group"},
-					"childId": {"type": "string", "description": "ID of the child project to add"}
-				},
-				"required": ["groupId", "childId"]
-			}`),
-		},
-	}
-	return &McpListToolsResult{Tools: tools}, nil
+	return &McpListToolsResult{Tools: GetToolList()}, nil
 }
 
 // handleCallTool executes a specific tool requested by the AI agent.
@@ -207,85 +128,19 @@ func (s *Server) handleCallTool(params json.RawMessage) (*McpCallToolResult, *Js
 
 	switch callParams.Name {
 	case "list_projects":
-		projects, e := s.ProjectService.ListProjects()
-		if e != nil {
-			err = e
-		} else {
-			bytes, _ := json.MarshalIndent(projects, "", "  ")
-			result = string(bytes)
-		}
-
+		result, err = s.handleListProjects(callParams.Arguments)
 	case "deploy_project":
-		id, _ := callParams.Arguments["id"].(string)
-		if id == "" {
-			err = fmt.Errorf("id is required")
-		} else {
-			result, err = s.DockerService.DeployProject(s.context(), id)
-		}
-
+		result, err = s.handleDeployProject(callParams.Arguments)
 	case "stop_project":
-		id, _ := callParams.Arguments["id"].(string)
-		if id == "" {
-			err = fmt.Errorf("id is required")
-		} else {
-			result, err = s.DockerService.StopProject(s.context(), id)
-		}
-
+		result, err = s.handleStopProject(callParams.Arguments)
 	case "get_logs":
-		id, _ := callParams.Arguments["id"].(string)
-		service, _ := callParams.Arguments["service"].(string)
-		tail, _ := callParams.Arguments["tail"].(string)
-		if tail == "" {
-			tail = "100"
-		}
-
-		if id == "" {
-			err = fmt.Errorf("id is required")
-		} else {
-			result, err = s.DockerService.GetProjectLogs(id, service, tail)
-		}
-
+		result, err = s.handleGetLogs(callParams.Arguments)
 	case "modify_compose":
-		compose, _ := callParams.Arguments["compose"].(string)
-		instruction, _ := callParams.Arguments["instruction"].(string)
-		provider := os.Getenv("LLM_PROVIDER")
-
-		result, err = s.LLMService.ModifyCompose(compose, instruction, provider)
-
+		result, err = s.handleModifyCompose(callParams.Arguments)
 	case "create_group":
-		name, _ := callParams.Arguments["name"].(string)
-		desc, _ := callParams.Arguments["description"].(string)
-		pIdsInterface, _ := callParams.Arguments["projectIds"].([]interface{})
-		var projectIds []string
-		for _, v := range pIdsInterface {
-			if s, ok := v.(string); ok {
-				projectIds = append(projectIds, s)
-			}
-		}
-		
-		proj, e := s.ProjectService.CreateGroup(name, desc, projectIds, 0, 0)
-		if e != nil {
-			err = e
-		} else {
-			// Return ID
-			result = fmt.Sprintf("Group Created. ID: %s", proj.ID)
-		}
-
+		result, err = s.handleCreateGroup(callParams.Arguments)
 	case "add_to_group":
-		groupId, _ := callParams.Arguments["groupId"].(string)
-		childId, _ := callParams.Arguments["childId"].(string)
-		
-		if groupId == "" || childId == "" {
-			err = fmt.Errorf("groupId and childId are required")
-		} else {
-			_, e := s.ProjectService.AddProjectToGroup(groupId, childId)
-			if e != nil {
-				err = e
-			} else {
-				result = "Added to group successfully"
-			}
-		}
-
+		result, err = s.handleAddToGroup(callParams.Arguments)
 	default:
 		return nil, &JsonRpcError{Code: -32601, Message: fmt.Sprintf("Tool not found: %s", callParams.Name)}
 	}

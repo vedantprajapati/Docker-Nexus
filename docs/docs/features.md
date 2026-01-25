@@ -24,7 +24,9 @@ Docker Nexus is a **Docker Compose manager** designed for simple home server set
 | **Groups** | Organize related projects by dragging one onto another. Uses Docker Compose's `include` field to create parent-child hierarchies. |
 | **Live Compose Editor** | Edit `docker-compose.yml` directly in the browser with syntax highlighting. |
 | **One-Click Deploy** | Deploy or stop entire projects with a single button click. |
-| **Real-Time Logs** | Stream container logs via SSE. Filter by service name. |
+| **Hybrid Deployment** | Run projects from their original location on your drive or let Nexus manage them in `data/deployments`. |
+| **Custom Theming** | Personalize your dashboard with presets (Nier, Dark Machine) or custom color hex codes. |
+| **Real-Time Logs** | Stream container logs via SSE or open an interactive WebSocket terminal. |
 | **AI Assistant** | Ask the LLM to "add a healthcheck" or "expose port 443" and it modifies your YAML. |
 | **MCP Integration** | Connect AI agents (Claude, Gemini) to control Docker Nexus programmatically. |
 
@@ -41,6 +43,6 @@ Docker Nexus is a **Docker Compose manager** designed for simple home server set
 
 | Feature | Description |
 |---------|-------------|
+| **Auto-Scan** | Automatically discover existing Docker Compose projects on your system and import them. |
 | **Monitoring Dashboard** | Track container health over time with charts and alerts. |
-| **Health Alerts** | Get notified when a container goes down. |
 | **Export/Import** | Bundle your entire stack into a portable archive. |

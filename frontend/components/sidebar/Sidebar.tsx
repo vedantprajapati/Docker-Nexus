@@ -20,12 +20,20 @@ import RenameModal from '@/components/ui/RenameModal';
 import SettingsModal from '@/components/modals/SettingsModal';
 
 interface SidebarProps {
+    isCollapsed: boolean;
+    onToggleCollapse: () => void;
     onNewProject: () => void;
     onTitleClick?: () => void;
     onProjectSelect?: (id: string) => void;
 }
 
-export default function Sidebar({ onNewProject, onTitleClick, onProjectSelect }: SidebarProps) {
+export default function Sidebar({
+    isCollapsed,
+    onToggleCollapse,
+    onNewProject,
+    onTitleClick,
+    onProjectSelect
+}: SidebarProps) {
     const { projects, currentProject, fetchProjects, selectProject, deleteProject, createProject, updateProject, config, fetchConfig } = useStore();
     const [showGroupModal, setShowGroupModal] = useState(false);
     const [showGroupNameModal, setShowGroupNameModal] = useState(false);
@@ -37,7 +45,7 @@ export default function Sidebar({ onNewProject, onTitleClick, onProjectSelect }:
     const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
 
     const toggleCollapse = (projectId: string) => {
-        setCollapsedNodes(prev => {
+        setCollapsedNodes((prev: Set<string>) => {
             const next = new Set(prev);
             if (next.has(projectId)) {
                 next.delete(projectId);
@@ -54,8 +62,8 @@ export default function Sidebar({ onNewProject, onTitleClick, onProjectSelect }:
     }, [fetchProjects, fetchConfig]);
 
     const handleCreateGroup = async (sourceId: string, targetId: string) => {
-        const sourceProject = projects.find(p => p.id === sourceId);
-        const targetProject = projects.find(p => p.id === targetId);
+        const sourceProject = projects.find((p: Project) => p.id === sourceId);
+        const targetProject = projects.find((p: Project) => p.id === targetId);
 
         if (!sourceProject || !targetProject) return;
 
@@ -64,7 +72,9 @@ export default function Sidebar({ onNewProject, onTitleClick, onProjectSelect }:
         try {
             const doc = parse(targetProject.compose);
             isTargetGroup = doc.include && Array.isArray(doc.include);
-        } catch { }
+        } catch (e) {
+            console.error("Failed to parse YAML for group check:", e);
+        }
 
         if (isTargetGroup) {
             // Check if source is already in target group
@@ -76,7 +86,9 @@ export default function Sidebar({ onNewProject, onTitleClick, onProjectSelect }:
                     console.log('Project already in group');
                     return;
                 }
-            } catch { }
+            } catch (e) {
+                console.error("Failed to parse YAML for inclusion check:", e);
+            }
 
             setPendingAddToGroup({
                 sourceId,
@@ -89,10 +101,10 @@ export default function Sidebar({ onNewProject, onTitleClick, onProjectSelect }:
         }
 
         // Check if they're already in the same group (parent check)
-        const existingParent = projects.find(p => {
+        const existingParent = projects.find((p: Project) => {
             if (p.compose.includes('include:')) {
                 const includeSection = p.compose.split('include:')[1]?.split('services:')[0] || '';
-                const childIds = (includeSection.match(/\.\.\/([\w-]+)\/docker-compose\.yml/g) || []).map(inc => {
+                const childIds = (includeSection.match(/\.\.\/([\w-]+)\/docker-compose\.yml/g) || []).map((inc: string) => {
                     const match = inc.match(/\.\.\/([\w-]+)\//);
                     return match ? match[1] : '';
                 }).filter(Boolean);
@@ -123,7 +135,7 @@ export default function Sidebar({ onNewProject, onTitleClick, onProjectSelect }:
     const handleConfirmAddToGroup = async () => {
         if (!pendingAddToGroup) return;
         const { sourceId, targetId } = pendingAddToGroup;
-        const targetProject = projects.find(p => p.id === targetId);
+        const targetProject = projects.find((p: Project) => p.id === targetId);
 
         if (targetProject) {
             try {
@@ -188,7 +200,7 @@ services: {}
         const parentMap = new Map<string, string>(); // childId -> parentId
 
         // First pass: identify all parent-child relationships
-        projects.forEach(project => {
+        projects.forEach((project: Project) => {
             try {
                 const doc = parse(project.compose);
                 if (doc.include && Array.isArray(doc.include)) {
@@ -203,7 +215,7 @@ services: {}
                     });
                 }
             } catch (e) {
-                // Ignore parsing errors
+                console.error("Failed to parse YAML for hierarchy pass:", e);
             }
         });
 
@@ -218,7 +230,7 @@ services: {}
         };
 
         // Build hierarchy with correct levels
-        projects.forEach(project => {
+        projects.forEach((project: Project) => {
             const level = getLevel(project.id);
 
             // Only add top-level items (level 0) to the hierarchy
@@ -233,7 +245,9 @@ services: {}
                             return match ? match[1] : '';
                         }).filter(Boolean);
                     }
-                } catch { }
+                } catch (e) {
+                    console.error("Failed to parse YAML for child mapping:", e);
+                }
 
                 if (children.length > 0 || !childProjectIds.has(project.id)) {
                     // Add if it's a parent OR if it's not a child (top level standalone)
@@ -249,29 +263,36 @@ services: {}
     const hierarchyItems = getProjectHierarchy();
 
     return (
-        <div className="w-72 h-full bg-nier-paper border-r border-nier-border flex flex-col">
+        <div className={`h-full bg-nier-paper border-r border-nier-border flex flex-col transition-all duration-300 relative ${isCollapsed ? 'w-20' : 'w-72'}`}>
+            {/* Collapse Toggle */}
+            <button
+                onClick={onToggleCollapse}
+                className="absolute -right-3 top-10 z-50 w-6 h-6 bg-nier-dark text-nier-beige border border-nier-border flex items-center justify-center hover:bg-nier-accent transition-colors"
+            >
+                <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? '' : 'rotate-180'}`} />
+            </button>
             {/* Header */}
             <div
                 className="p-6 border-b border-nier-border/50 transition-colors"
-                onDragOver={(e) => {
+                onDragOver={(e: React.DragEvent) => {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
                     e.currentTarget.classList.add('bg-nier-accent/10');
                 }}
-                onDragLeave={(e) => {
+                onDragLeave={(e: React.DragEvent) => {
                     e.preventDefault();
                     e.currentTarget.classList.remove('bg-nier-accent/10');
                 }}
-                onDrop={async (e) => {
+                onDrop={async (e: React.DragEvent) => {
                     e.preventDefault();
                     e.currentTarget.classList.remove('bg-nier-accent/10');
                     const projectId = e.dataTransfer.getData('projectId');
                     if (!projectId) return;
 
-                    const parentGroup = projects.find(p => {
+                    const parentGroup = projects.find((p: Project) => {
                         if (p.compose.includes('include:')) {
                             const includeSection = p.compose.split('include:')[1]?.split('services:')[0] || '';
-                            const childIds = (includeSection.match(/\.\.\/([\w-]+)\/docker-compose\.yml/g) || []).map(inc => {
+                            const childIds = (includeSection.match(/\.\.\/([\w-]+)\/docker-compose\.yml/g) || []).map((inc: string) => {
                                 const match = inc.match(/\.\.\/([\w-]+)\//);
                                 return match ? match[1] : '';
                             }).filter(Boolean);
@@ -298,36 +319,40 @@ services: {}
                 }}
             >
                 <div
-                    className="flex items-center gap-3 mb-6 cursor-pointer group"
+                    className={`flex items-center gap-3 mb-6 cursor-pointer group ${isCollapsed ? 'justify-center' : ''}`}
                     onClick={() => {
                         selectProject(''); // Deselect
                         onTitleClick?.();
                     }}
                 >
-                    <div className="w-10 h-10 relative group-hover:scale-105 transition-transform">
+                    <div className="w-10 h-10 relative group-hover:scale-105 transition-transform shrink-0">
                         <img src="/logo.png" alt="Docker Nexus" className="object-contain w-full h-full" />
                     </div>
-                    <div>
-                        <h1 className="font-bold text-nier-dark text-lg uppercase tracking-tight group-hover:text-nier-accent transition-colors">Docker Nexus</h1>
-                        <p className="text-[10px] text-nier-muted uppercase tracking-widest font-bold">Nexus Console</p>
-                    </div>
+                    {!isCollapsed && (
+                        <div className="min-w-0">
+                            <h1 className="font-bold text-nier-dark text-lg uppercase tracking-tight group-hover:text-nier-accent transition-colors truncate">Docker Nexus</h1>
+                            <p className="text-[10px] text-nier-muted uppercase tracking-widest font-bold">Nexus Console</p>
+                        </div>
+                    )}
                 </div>
 
-                <div className="flex gap-2">
+                <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-2`}>
                     <button
                         onClick={onNewProject}
                         disabled={config && !config.features.editCompose}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-nier-dark text-nier-beige text-[11px] font-bold uppercase tracking-widest hover:opacity-90 transition-all border-b-2 border-nier-dark/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="New Composition"
+                        className={`flex items-center justify-center gap-2 px-3 py-3 bg-nier-dark text-nier-beige text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all border-b-2 border-nier-dark/20 disabled:opacity-50 disabled:cursor-not-allowed ${isCollapsed ? 'w-12 rounded-lg' : 'w-full'}`}
                     >
-                        <Plus className="w-4 h-4" />
-                        New Composition
+                        <Plus className="w-4 h-4 shrink-0" />
+                        {!isCollapsed && "New Project"}
                     </button>
                     <button
                         onClick={() => setShowNewGroupModal(true)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-nier-accent text-nier-beige text-[11px] font-bold uppercase tracking-widest hover:opacity-90 transition-all border-b-2 border-nier-accent/20"
+                        title="New Group"
+                        className={`flex items-center justify-center gap-2 px-3 py-3 bg-nier-accent text-nier-beige text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all border-b-2 border-nier-accent/20 ${isCollapsed ? 'w-12 rounded-lg' : 'w-full'}`}
                     >
-                        <Plus className="w-4 h-4" />
-                        New Group
+                        <Plus className="w-4 h-4 shrink-0" />
+                        {!isCollapsed && "New Group"}
                     </button>
                 </div>
             </div>
@@ -335,26 +360,26 @@ services: {}
             {/* Project List */}
             <div
                 className="flex-1 overflow-y-auto p-3 transition-colors"
-                onDragOver={(e) => {
+                onDragOver={(e: React.DragEvent) => {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
                     e.currentTarget.classList.add('bg-nier-dark/5');
                 }}
-                onDragLeave={(e) => {
+                onDragLeave={(e: React.DragEvent) => {
                     e.preventDefault();
                     e.currentTarget.classList.remove('bg-nier-dark/5');
                 }}
-                onDrop={async (e) => {
+                onDrop={async (e: React.DragEvent) => {
                     e.preventDefault();
                     e.currentTarget.classList.remove('bg-nier-dark/5');
                     const projectId = e.dataTransfer.getData('projectId');
                     if (!projectId) return;
 
                     // Find parent group that contains this project
-                    const parentGroup = projects.find(p => {
+                    const parentGroup = projects.find((p: Project) => {
                         if (p.compose.includes('include:')) {
                             const includeSection = p.compose.split('include:')[1]?.split('services:')[0] || '';
-                            const childIds = (includeSection.match(/\.\.\/([\w-]+)\/docker-compose\.yml/g) || []).map(inc => {
+                            const childIds = (includeSection.match(/\.\.\/([\w-]+)\/docker-compose\.yml/g) || []).map((inc: string) => {
                                 const match = inc.match(/\.\.\/([\w-]+)\//);
                                 return match ? match[1] : '';
                             }).filter(Boolean);
@@ -381,12 +406,14 @@ services: {}
                     }
                 }}
             >
-                <div className="px-3 mb-2">
-                    <p className="text-[10px] text-nier-muted font-bold uppercase tracking-[0.2em]">Compositions</p>
-                </div>
+                {!isCollapsed && (
+                    <div className="px-3 mb-2">
+                        <p className="text-[10px] text-nier-muted font-bold uppercase tracking-[0.2em]">Compositions</p>
+                    </div>
+                )}
                 {projects.length === 0 ? (
                     <div className="text-center py-10 text-nier-muted text-[11px] italic">
-                        Empty composition library
+                        {!isCollapsed && "Empty composition library"}
                     </div>
                 ) : (
                     <div className="space-y-1">
@@ -408,7 +435,9 @@ services: {}
                                                 return match ? match[1] : '';
                                             }).filter(Boolean);
                                         }
-                                    } catch { }
+                                    } catch (e) {
+                                        console.error("Failed to parse YAML for grandchild mapping:", e);
+                                    }
 
                                     return { project: childProj, children: grandchildIds };
                                 }).filter(Boolean) as Array<{ project: Project; children: string[] }>;
@@ -420,6 +449,7 @@ services: {}
                                             isSelected={currentProject?.id === proj.id}
                                             level={lvl}
                                             hasChildren={childIds.length > 0}
+                                            isSidebarCollapsed={isCollapsed}
                                             onSelect={() => {
                                                 selectProject(proj.id);
                                                 onProjectSelect?.(proj.id);
@@ -429,7 +459,7 @@ services: {}
                                             isCollapsed={collapsedNodes.has(proj.id)}
                                             onToggleCollapse={() => toggleCollapse(proj.id)}
                                         />
-                                        {childIds.length > 0 && !collapsedNodes.has(proj.id) && (
+                                        {childIds.length > 0 && !collapsedNodes.has(proj.id) && !isCollapsed && (
                                             <div className="ml-4 border-l-2 border-nier-dark/10">
                                                 {projChildren.map(({ project: childProj, children: grandchildIds }) =>
                                                     renderProject(childProj, grandchildIds, lvl + 1)
@@ -491,13 +521,14 @@ services: {}
                 onRename={handleNewGroup}
             />
 
-            <div className="p-4 border-t border-nier-border/50 bg-nier-paper">
+            <div className={`p-4 border-t border-nier-border/50 bg-nier-paper ${isCollapsed ? 'flex justify-center' : ''}`}>
                 <button
                     onClick={() => setShowSettings(true)}
-                    className="flex items-center gap-3 w-full px-4 py-2 text-nier-muted hover:text-nier-dark hover:bg-nier-dark/5 rounded transition-all group"
+                    title="Settings"
+                    className={`flex items-center gap-3 px-4 py-2 text-nier-muted hover:text-nier-dark hover:bg-nier-dark/5 rounded transition-all group ${isCollapsed ? 'justify-center w-12 h-12' : 'w-full'}`}
                 >
-                    <Settings className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Settings</span>
+                    <Settings className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500 shrink-0" />
+                    {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-widest">Settings</span>}
                 </button>
             </div>
 
@@ -514,6 +545,7 @@ interface ProjectItemProps {
     isSelected: boolean;
     level: number;
     hasChildren: boolean;
+    isSidebarCollapsed?: boolean;
     onSelect: () => void;
     onDelete: () => void;
     onCreateGroup?: (sourceId: string, targetId: string) => void;
@@ -521,7 +553,7 @@ interface ProjectItemProps {
     onToggleCollapse?: () => void;
 }
 
-function ProjectItem({ project, isSelected, level, hasChildren, onSelect, onDelete, onCreateGroup, isCollapsed, onToggleCollapse }: ProjectItemProps) {
+function ProjectItem({ project, isSelected, level, hasChildren, isSidebarCollapsed, onSelect, onDelete, onCreateGroup, isCollapsed, onToggleCollapse }: ProjectItemProps) {
     const [showActions, setShowActions] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -598,7 +630,7 @@ function ProjectItem({ project, isSelected, level, hasChildren, onSelect, onDele
                 : isSelected
                     ? 'bg-nier-dark text-nier-beige shadow-sm'
                     : 'hover:bg-nier-dark/5 text-nier-dark'
-                }`}
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
             draggable
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
@@ -608,8 +640,9 @@ function ProjectItem({ project, isSelected, level, hasChildren, onSelect, onDele
             onClick={handleClick}
             onMouseEnter={() => setShowActions(true)}
             onMouseLeave={() => setShowActions(false)}
+            title={isSidebarCollapsed ? project.name : undefined}
         >
-            {hasChildren && onToggleCollapse && (
+            {hasChildren && onToggleCollapse && !isSidebarCollapsed && (
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -620,15 +653,17 @@ function ProjectItem({ project, isSelected, level, hasChildren, onSelect, onDele
                     <ChevronRight className={`w-3.5 h-3.5 ${isSelected ? 'text-nier-beige' : 'text-nier-muted'}`} />
                 </button>
             )}
-            <Folder className={`w-4 h-4 ${isSelected ? 'text-nier-beige' : hasChildren ? 'text-nier-accent' : 'text-nier-muted'}`} />
-            <div className="flex-1 min-w-0">
-                <p className={`text-[11px] font-bold uppercase tracking-wide truncate ${isSelected ? 'text-nier-beige' : 'text-nier-dark'}`}>
-                    {level > 0 && <span className="text-nier-muted mr-1">└</span>}
-                    {project.name}
-                </p>
-            </div>
+            <Folder className={`w-4 h-4 shrink-0 ${isSelected ? 'text-nier-beige' : hasChildren ? 'text-nier-accent' : 'text-nier-muted'}`} />
+            {!isSidebarCollapsed && (
+                <div className="flex-1 min-w-0">
+                    <p className={`text-[11px] font-bold uppercase tracking-wide truncate ${isSelected ? 'text-nier-beige' : 'text-nier-dark'}`}>
+                        {level > 0 && <span className="text-nier-muted mr-1">└</span>}
+                        {project.name}
+                    </p>
+                </div>
+            )}
 
-            {showActions && (
+            {!isSidebarCollapsed && showActions && (
                 <div className="flex items-center gap-1">
                     <button
                         onClick={(e) => {

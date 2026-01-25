@@ -36,8 +36,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         try {
             await updateConfig(localConfig);
             onClose();
-        } catch (err) {
-            setError((err as Error).message);
+        } catch (err: any) {
+            setError(err.message || 'An unknown error occurred');
         } finally {
             setSaving(false);
         }

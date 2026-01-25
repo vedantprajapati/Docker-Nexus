@@ -271,7 +271,7 @@ const ComposeGraph = forwardRef(({
     liveContainers,
     isLiveMode,
     onNodeClick,
-}: ComposeGraphProps, ref) => {
+}: ComposeGraphProps, ref: any) => {
     const rfInstance = useRef<ReactFlowInstance | null>(null);
     const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
     const [showAddToGroupModal, setShowAddToGroupModal] = useState(false);
@@ -319,7 +319,7 @@ const ComposeGraph = forwardRef(({
                     await fetchProjects();
                 }
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Failed to add to group', e);
         }
         setShowAddToGroupModal(false);
@@ -335,7 +335,7 @@ const ComposeGraph = forwardRef(({
             const yaml = `include:\n  - ../${sourceId}/docker-compose.yml\n  - ../${targetId}/docker-compose.yml\n\nservices: {}\n`;
             await createProject(name, 'Group', yaml, pos.x, pos.y); // Position support if needed
             await fetchProjects();
-        } catch (e) { console.error(e) }
+        } catch (e: any) { console.error(e) }
 
         setShowCreateGroupModal(false);
         setPendingReq(null);
@@ -537,7 +537,7 @@ const ComposeGraph = forwardRef(({
 
     // ... (handleNodeClick etc mostly same)
 
-    const handleNodeClick = useCallback((_: any, node: Node) => {
+    const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
         onNodeClick?.(node.id);
         if (node.type === 'projectGroup' && node.id.startsWith('project-')) {
             // Zoom logic
@@ -713,7 +713,9 @@ const ComposeGraph = forwardRef(({
                                         doc.include = doc.include.filter((p: string) => p !== targetPath);
                                         const newCompose = stringify(doc);
                                         updateProject(parentGroup.id, { compose: newCompose });
-                                    } catch { }
+                                    } catch (e: any) {
+                                        console.error("Failed to update decomposition:", e);
+                                    }
                                 }
                             }
                         }

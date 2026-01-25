@@ -27,7 +27,7 @@ Add the following to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "docker-nexus": {
-      "command": "path/to/backend/quantum-crab",
+      "command": "path/to/backend/docker-nexus-backend",
       "args": [],
       "env": {
         "MCP_MODE": "true"
@@ -48,7 +48,7 @@ Add the following to your `~/.gemini/settings.json`:
 {
   "mcpServers": {
     "docker-nexus": {
-      "command": "path/to/backend/quantum-crab",
+      "command": "path/to/backend/docker-nexus-backend",
       "args": [],
       "env": {
         "MCP_MODE": "true"

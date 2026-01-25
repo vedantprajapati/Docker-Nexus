@@ -62,8 +62,8 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
             setDescription('');
             setCompose(sampleCompose);
             onClose();
-        } catch (err) {
-            setError((err as Error).message);
+        } catch (err: any) {
+            setError(err.message || 'An unknown error occurred');
         }
     };
 
@@ -117,7 +117,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                             <input
                                 type="text"
                                 value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                                 placeholder="my-awesome-stack"
                                 className="w-full px-4 py-3 bg-nier-beige border border-nier-border text-nier-dark placeholder-nier-muted/30 focus:outline-none focus:ring-1 focus:ring-nier-dark transition-all text-sm font-bold tracking-tight"
                             />
@@ -130,7 +130,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                             <input
                                 type="text"
                                 value={description}
-                                onChange={(e) => setDescription(e.target.value)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDescription(e.target.value)}
                                 placeholder="A brief description of this stack"
                                 className="w-full px-4 py-3 bg-nier-beige border border-nier-border text-nier-dark placeholder-nier-muted/30 focus:outline-none focus:ring-1 focus:ring-nier-dark transition-all text-sm font-bold tracking-tight"
                             />
@@ -155,7 +155,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                         </div>
                         <textarea
                             value={compose}
-                            onChange={(e) => setCompose(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCompose(e.target.value)}
                             rows={10}
                             className="w-full px-4 py-3 bg-nier-beige border border-nier-border text-nier-dark font-mono text-xs placeholder-nier-muted/30 focus:outline-none focus:ring-1 focus:ring-nier-dark resize-none transition-all"
                         />
