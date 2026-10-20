@@ -68,3 +68,13 @@ export interface ServiceStatus {
     status: string;
     health?: string;
 }
+
+export interface ContainerInfo {
+    id: string;
+    names: string[];
+    image: string;
+    status: string;
+    state: string;
+    labels?: Record<string, string>;
+    ip?: string;
+}

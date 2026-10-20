@@ -1,14 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
-import { useStore } from '@/lib/store';
+import { useStore, API_URL } from '@/lib/store';
 import Sidebar from '@/components/sidebar/Sidebar';
 import NewProjectModal from '@/components/modals/NewProjectModal';
-import {
-  Loader2,
-  FileCode,
-} from 'lucide-react';
 import { parse, stringify } from 'yaml';
 import WorkloadDetail from '@/components/detail/WorkloadDetail';
 
@@ -23,8 +18,6 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>('graph');
   const [editedCompose, setEditedCompose] = useState('');
   const [yamlError, setYamlError] = useState<string | null>(null);
-  const [deployStatus, setDeployStatus] = useState<'idle' | 'deploying' | 'success' | 'error'>('idle');
-  const [statusMessage, setStatusMessage] = useState('');
   const [allCategories, setAllCategories] = useState<Record<string, Record<string, string>>>({});
   const graphRef = useRef<any>(null);
   const {
@@ -32,14 +25,10 @@ export default function Home() {
     currentProject,
     isLiveMode,
     updateProject,
-    deployProject,
-    stopProject,
-    loading,
     fetchProjects,
     fetchLiveContainers,
     setIsLiveMode,
     selectedNodeId,
-    config
   } = useStore();
 
   useEffect(() => {
@@ -69,42 +58,44 @@ export default function Home() {
     try {
       parse(editedCompose);
       setYamlError(null);
-    } catch (e: any) {
-      setYamlError(e.message || 'Unknown error');
+    } catch (e: unknown) {
+      setYamlError((e as Error).message || 'Invalid YAML');
     }
   }, [editedCompose]);
 
   // Automated categorization
   useEffect(() => {
+    let isCancelled = false;
     const fetchCategories = async () => {
       const newCategories: Record<string, Record<string, string>> = {};
+
       for (const project of projects) {
-        if (allCategories[project.id] || (window as any)._failedCats?.[project.id]) continue;
+        if (allCategories[project.id]) continue;
+
         if (project.compose.includes('include:')) {
           newCategories[project.id] = {};
           continue;
         }
 
         try {
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-          const res = await fetch(`${apiUrl}/api/llm/categorize`, {
+          const res = await fetch(`${API_URL}/llm/categorize`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ compose: project.compose }),
           });
 
-          if (!res.ok) throw new Error(`API error: ${res.status}`);
-
-          const data = await res.json();
-          newCategories[project.id] = data?.categories || {};
-        } catch (err) {
-          console.error(`Failed to categorize ${project.name}:`, err);
-          if (!(window as any)._failedCats) (window as any)._failedCats = {};
-          (window as any)._failedCats[project.id] = true;
+          if (res.ok) {
+            const data = await res.json();
+            newCategories[project.id] = data?.categories || {};
+          } else {
+            newCategories[project.id] = {};
+          }
+        } catch {
           newCategories[project.id] = {};
         }
       }
-      if (Object.keys(newCategories).length > 0) {
+
+      if (!isCancelled && Object.keys(newCategories).length > 0) {
         setAllCategories(prev => ({ ...prev, ...newCategories }));
       }
     };
@@ -112,45 +103,11 @@ export default function Home() {
     if (projects.length > 0) {
       fetchCategories();
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [projects, allCategories]);
-
-  const handleSave = async () => {
-    if (!currentProject) return;
-    await updateProject(currentProject.id, { compose: editedCompose });
-  };
-
-  const handleDeploy = async () => {
-    if (!currentProject) return;
-    setDeployStatus('deploying');
-    try {
-      if (editedCompose !== currentProject.compose) {
-        await updateProject(currentProject.id, { compose: editedCompose });
-      }
-      const result = await deployProject(currentProject.id);
-      setDeployStatus('success');
-      setStatusMessage(result.message);
-      setTimeout(() => setDeployStatus('idle'), 3000);
-    } catch (err) {
-      setDeployStatus('error');
-      setStatusMessage((err as Error).message);
-      setTimeout(() => setDeployStatus('idle'), 5000);
-    }
-  };
-
-  const handleStop = async () => {
-    if (!currentProject) return;
-    setDeployStatus('deploying');
-    try {
-      const result = await stopProject(currentProject.id);
-      setDeployStatus('success');
-      setStatusMessage(result.message);
-      setTimeout(() => setDeployStatus('idle'), 3000);
-    } catch (err) {
-      setDeployStatus('error');
-      setStatusMessage((err as Error).message);
-      setTimeout(() => setDeployStatus('idle'), 5000);
-    }
-  };
 
   const [isChatExpanded, setIsChatExpanded] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -165,14 +122,12 @@ export default function Home() {
         onProjectSelect={(id) => graphRef.current?.zoomToProject(id)}
       />
 
-      <main className={`flex-1 flex flex-col overflow-hidden relative transition-all duration-300`}>
+      <main className="flex-1 flex flex-col overflow-hidden relative transition-all duration-300">
         <TopBar
           currentProject={currentProject}
-          hasChanges={currentProject && editedCompose !== currentProject.compose}
+          hasChanges={currentProject ? editedCompose !== currentProject.compose : false}
           viewMode={viewMode}
           yamlError={yamlError}
-          deployStatus={deployStatus}
-          statusMessage={statusMessage}
           isLiveMode={isLiveMode}
           setIsLiveMode={setIsLiveMode}
           setViewMode={setViewMode}
@@ -180,9 +135,13 @@ export default function Home() {
             try {
               const parsed = parse(editedCompose);
               setEditedCompose(stringify(parsed, { indent: 2 }));
-            } catch (e) {
+            } catch {
               alert('Invalid YAML');
             }
+          }}
+          onSave={async () => {
+            if (!currentProject) return;
+            await updateProject(currentProject.id, { compose: editedCompose });
           }}
         />
 

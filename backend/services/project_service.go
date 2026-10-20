@@ -2,6 +2,7 @@ package services
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,8 @@ import (
 	_ "github.com/lib/pq"
 	"gopkg.in/yaml.v3"
 )
+
+var ErrProjectNotFound = errors.New("project not found")
 
 type Project struct {
 	ID          string    `json:"id"`
@@ -79,7 +82,7 @@ func (s *ProjectService) LoadProject(id string) (*Project, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("project not found")
+			return nil, ErrProjectNotFound
 		}
 		return nil, err
 	}
@@ -124,7 +127,6 @@ func (s *ProjectService) UpdateProject(id string, name, description, compose str
 		return nil, err
 	}
 
-	// 2. Prepare updates
 	if name != "" {
 		current.Name = name
 	}
@@ -164,7 +166,7 @@ func (s *ProjectService) DeleteProject(id string) error {
 	}
 	count, _ := res.RowsAffected()
 	if count == 0 {
-		return fmt.Errorf("project not found")
+		return ErrProjectNotFound
 	}
 	return nil
 }

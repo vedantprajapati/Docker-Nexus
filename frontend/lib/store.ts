@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { Project } from './types';
+import { Project, ContainerInfo } from './types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+export const API_URL = rawApiUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '') + '/api';
 
 export interface AppConfig {
     features: {
@@ -24,7 +25,7 @@ export interface AppConfig {
 interface AppState {
     projects: Project[];
     currentProject: Project | null;
-    liveContainers: any[];
+    liveContainers: ContainerInfo[];
     selectedNodeId: string | null;
     isLiveMode: boolean;
     loading: boolean;
@@ -43,7 +44,7 @@ interface AppState {
     setSelectedNodeId: (id: string | null) => void;
     setIsLiveMode: (isLive: boolean) => void;
     modifyWithLLM: (instruction: string) => Promise<string>;
-    categorizeServices: () => Promise<Record<string, string>>;
+    categorizeServices: (compose?: string) => Promise<Record<string, string>>;
     getProjectLogs: (projectId: string, service?: string, tail?: string) => Promise<string>;
     restartService: (projectId: string, service: string) => Promise<void>;
     createGroup: (name: string, description: string, projectIds: string[], x?: number, y?: number) => Promise<Project>;
@@ -67,7 +68,7 @@ export const useStore = create<AppState>((set, get) => ({
     fetchProjects: async () => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/projects`);
+            const res = await fetch(`${API_URL}/projects`);
             if (!res.ok) throw new Error('Failed to fetch projects');
             const projects = await res.json();
             set({ projects, loading: false });
@@ -79,7 +80,7 @@ export const useStore = create<AppState>((set, get) => ({
     createProject: async (name, description, compose, x = 0, y = 0) => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/projects`, {
+            const res = await fetch(`${API_URL}/projects`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, description, compose, x, y }),
@@ -104,7 +105,7 @@ export const useStore = create<AppState>((set, get) => ({
     selectProject: async (id) => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/projects/${id}`);
+            const res = await fetch(`${API_URL}/projects/${id}`);
             if (!res.ok) throw new Error('Failed to fetch project');
             const project = await res.json();
             set({ currentProject: project, loading: false });
@@ -116,7 +117,7 @@ export const useStore = create<AppState>((set, get) => ({
     updateProject: async (id, updates) => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/projects/${id}`, {
+            const res = await fetch(`${API_URL}/projects/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates),
@@ -136,7 +137,7 @@ export const useStore = create<AppState>((set, get) => ({
     deleteProject: async (id) => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/projects/${id}`, {
+            const res = await fetch(`${API_URL}/projects/${id}`, {
                 method: 'DELETE',
             });
             if (!res.ok) throw new Error('Failed to delete project');
@@ -153,7 +154,7 @@ export const useStore = create<AppState>((set, get) => ({
     deployProject: async (id) => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/projects/${id}/deploy`, {
+            const res = await fetch(`${API_URL}/projects/${id}/deploy`, {
                 method: 'POST',
             });
             const data = await res.json();
@@ -171,7 +172,7 @@ export const useStore = create<AppState>((set, get) => ({
         set({ loading: true, error: null });
         try {
             const results = await Promise.all(ids.map(async (id: string) => {
-                const res = await fetch(`${API_URL}/api/projects/${id}/deploy`, {
+                const res = await fetch(`${API_URL}/projects/${id}/deploy`, {
                     method: 'POST',
                 });
                 const data = await res.json();
@@ -194,7 +195,7 @@ export const useStore = create<AppState>((set, get) => ({
     stopProject: async (id) => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/projects/${id}/stop`, {
+            const res = await fetch(`${API_URL}/projects/${id}/stop`, {
                 method: 'POST',
             });
             const data = await res.json();
@@ -214,7 +215,7 @@ export const useStore = create<AppState>((set, get) => ({
 
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/llm/modify`, {
+            const res = await fetch(`${API_URL}/llm/modify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -235,7 +236,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     fetchLiveContainers: async () => {
         try {
-            const res = await fetch(`${API_URL}/api/docker/containers`);
+            const res = await fetch(`${API_URL}/docker/containers`);
             if (!res.ok) throw new Error('Failed to fetch live containers');
             const liveContainers = await res.json();
             set({ liveContainers });
@@ -244,29 +245,30 @@ export const useStore = create<AppState>((set, get) => ({
         }
     },
 
-    categorizeServices: async () => {
-        const { currentProject } = get();
-        if (!currentProject) throw new Error('No project selected');
+    categorizeServices: async (composeToUse?: string) => {
+        const compose = composeToUse || get().currentProject?.compose;
+        if (!compose) return {};
 
         try {
-            const res = await fetch(`${API_URL}/api/llm/categorize`, {
+            const res = await fetch(`${API_URL}/llm/categorize`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ compose: currentProject.compose }),
+                body: JSON.stringify({ compose }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Categorization failed');
-            return data.categories;
+            return data.categories || {};
         } catch (err) {
             console.error('Categorization error:', err);
             return {};
         }
     },
+
     getProjectLogs: async (projectId, service, tail = '100') => {
         try {
             const params = new URLSearchParams({ tail });
             if (service) params.append('service', service);
-            const res = await fetch(`${API_URL}/api/projects/${projectId}/logs?${params}`);
+            const res = await fetch(`${API_URL}/projects/${projectId}/logs?${params}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to fetch logs');
             return data.logs;
@@ -280,12 +282,11 @@ export const useStore = create<AppState>((set, get) => ({
         try {
             const params = new URLSearchParams();
             if (service) params.append('service', service);
-            const res = await fetch(`${API_URL}/api/projects/${projectId}/restart?${params}`, {
+            const res = await fetch(`${API_URL}/projects/${projectId}/restart?${params}`, {
                 method: 'POST',
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to restart service');
-            // Refresh containers after restart
             get().fetchLiveContainers();
         } catch (err) {
             console.error('Restart error:', err);
@@ -296,7 +297,7 @@ export const useStore = create<AppState>((set, get) => ({
     createGroup: async (name, description, projectIds, x = 0, y = 0) => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/projects/group`, {
+            const res = await fetch(`${API_URL}/projects/group`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, description, projectIds, x, y }),
@@ -321,7 +322,7 @@ export const useStore = create<AppState>((set, get) => ({
     addProjectToGroup: async (groupId, childProjectId) => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${API_URL}/api/projects/${groupId}/group`, {
+            const res = await fetch(`${API_URL}/projects/${groupId}/group`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ childProjectId }),
@@ -350,7 +351,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     fetchConfig: async () => {
         try {
-            const res = await fetch(`${API_URL}/api/config`);
+            const res = await fetch(`${API_URL}/config`);
             if (!res.ok) throw new Error('Failed to fetch config');
             const config = await res.json();
             set({ config });
@@ -369,7 +370,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     updateConfig: async (newConfig) => {
         try {
-            const res = await fetch(`${API_URL}/api/config`, {
+            const res = await fetch(`${API_URL}/config`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newConfig),

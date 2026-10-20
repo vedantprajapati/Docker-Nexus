@@ -5,7 +5,8 @@ import {
     CheckCircle,
     XCircle,
     LayoutGrid,
-    Code
+    Code,
+    Save
 } from 'lucide-react';
 
 interface TopBarProps {
@@ -13,12 +14,13 @@ interface TopBarProps {
     hasChanges: boolean;
     viewMode: 'graph' | 'editor';
     yamlError: string | null;
-    deployStatus: 'idle' | 'deploying' | 'success' | 'error';
-    statusMessage: string;
+    deployStatus?: 'idle' | 'deploying' | 'success' | 'error';
+    statusMessage?: string;
     isLiveMode: boolean;
     setIsLiveMode: (val: boolean) => void;
     setViewMode: (mode: 'graph' | 'editor') => void;
     onFormatYaml: () => void;
+    onSave?: () => void;
 }
 
 export default function TopBar({
@@ -26,12 +28,13 @@ export default function TopBar({
     hasChanges,
     viewMode,
     yamlError,
-    deployStatus,
-    statusMessage,
+    deployStatus = 'idle',
+    statusMessage = '',
     isLiveMode,
     setIsLiveMode,
     setViewMode,
-    onFormatYaml
+    onFormatYaml,
+    onSave
 }: TopBarProps) {
     return (
         <div className="flex items-center justify-between px-6 py-3 border-b border-nier-border bg-nier-paper/50">
@@ -99,6 +102,16 @@ export default function TopBar({
                         >
                             Format YAML
                         </button>
+                        {onSave && (
+                            <button
+                                onClick={onSave}
+                                disabled={!hasChanges}
+                                className="flex items-center gap-2 px-4 py-2 border border-nier-dark text-nier-dark text-[11px] font-bold uppercase tracking-widest hover:bg-nier-dark hover:text-nier-beige transition-all disabled:opacity-30"
+                            >
+                                <Save className="w-3.5 h-3.5" />
+                                Save
+                            </button>
+                        )}
                     </>
                 )}
             </div>

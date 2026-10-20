@@ -5,18 +5,16 @@ import {
     X,
     Box,
     Database,
-    Globe,
     Terminal,
     Cpu,
-    HardDrive,
     Activity,
     CheckCircle,
-    AlertTriangle,
     Clock,
     Zap
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { parse } from 'yaml';
 import LogsModal from '../modals/LogsModal';
 
 const TerminalModal = dynamic(() => import('../modals/TerminalModal'), {
@@ -24,11 +22,10 @@ const TerminalModal = dynamic(() => import('../modals/TerminalModal'), {
 });
 
 export default function WorkloadDetail() {
-    const { projects, selectedNodeId, setSelectedNodeId, liveContainers, isLiveMode, restartService } = useStore();
+    const { projects, selectedNodeId, setSelectedNodeId, liveContainers, restartService } = useStore();
     const [showLogsModal, setShowLogsModal] = useState(false);
     const [showTerminalModal, setShowTerminalModal] = useState(false);
     const [isRestarting, setIsRestarting] = useState(false);
-    const [restartStatus, setRestartStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     const detail = useMemo(() => {
         if (!selectedNodeId) return null;
@@ -45,7 +42,6 @@ export default function WorkloadDetail() {
 
         let config: any = null;
         try {
-            const { parse } = require('yaml');
             const compose = parse(project.compose);
             config = compose?.services?.[serviceName];
         } catch (e) {
@@ -53,7 +49,7 @@ export default function WorkloadDetail() {
         }
 
         const liveInfo = liveContainers?.find((c: any) =>
-            c.names.some((cn: string) => cn.includes(serviceName) && cn.includes(projectId.split('-')[0])) ||
+            c.names?.some((cn: string) => cn.includes(serviceName) && cn.includes(projectId.split('-')[0])) ||
             c.labels?.['com.docker.compose.service'] === serviceName
         );
 
@@ -100,11 +96,6 @@ export default function WorkloadDetail() {
                             <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-900/10 text-green-700 border border-green-700/30">
                                 <CheckCircle className="w-3.5 h-3.5" />
                                 <span className="text-[10px] font-bold uppercase tracking-widest">Online</span>
-                            </div>
-                        ) : restartStatus === 'success' ? (
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-900/10 text-emerald-700 border border-emerald-700/30">
-                                <Zap className="w-3.5 h-3.5" />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">Restarted</span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-1.5 px-2 py-0.5 bg-nier-muted/10 text-nier-muted border border-nier-muted/30">
@@ -199,13 +190,9 @@ export default function WorkloadDetail() {
                     <button
                         onClick={async () => {
                             setIsRestarting(true);
-                            setRestartStatus('idle');
                             try {
                                 await restartService(project.id, serviceName);
-                                setRestartStatus('success');
-                                setTimeout(() => setRestartStatus('idle'), 5000);
                             } catch (err) {
-                                setRestartStatus('error');
                                 alert(`Failed to restart: ${(err as Error).message}`);
                             } finally {
                                 setIsRestarting(false);

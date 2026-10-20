@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
 	"gopkg.in/yaml.v3"
 
@@ -88,11 +90,15 @@ func (h *ProjectHandler) CreateProject(c *fiber.Ctx) error {
 //
 // Response:
 //   - 200 OK: Returns the Project object.
-//   - 500 Internal Server Error: If the project is not found (TODO: should return 404).
+//   - 404 Not Found: If the project is not found.
+//   - 500 Internal Server Error: If database error occurs.
 func (h *ProjectHandler) GetProject(c *fiber.Ctx) error {
 	id := c.Params("id")
 	project, err := h.Service.LoadProject(id)
 	if err != nil {
+		if errors.Is(err, services.ErrProjectNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Project not found"})
+		}
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(project)
@@ -122,6 +128,9 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 
 	project, err := h.Service.UpdateProject(id, req.Name, req.Description, req.Compose, req.X, req.Y)
 	if err != nil {
+		if errors.Is(err, services.ErrProjectNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Project not found"})
+		}
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -141,6 +150,9 @@ func (h *ProjectHandler) UpdateProject(c *fiber.Ctx) error {
 func (h *ProjectHandler) DeleteProject(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if err := h.Service.DeleteProject(id); err != nil {
+		if errors.Is(err, services.ErrProjectNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Project not found"})
+		}
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.SendStatus(204)

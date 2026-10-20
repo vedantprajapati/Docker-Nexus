@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { Send, Sparkles, Loader2, X, Check } from 'lucide-react';
+import { Sparkles, Loader2, Check } from 'lucide-react';
 
 interface Message {
     role: 'user' | 'assistant';

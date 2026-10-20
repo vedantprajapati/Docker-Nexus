@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"os/exec"
-	"syscall"
 
 	"docker-nexus/services"
 
@@ -63,10 +62,7 @@ func (h *TerminalHandler) HandleTerminal(c *websocket.Conn) {
 	cmd.Stdin = pts
 	cmd.Stdout = pts
 	cmd.Stderr = pts
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid:  true,
-		Setctty: false,
-	}
+	setSysProcAttr(cmd)
 
 	if err := cmd.Start(); err != nil {
 		ptmx.Close()

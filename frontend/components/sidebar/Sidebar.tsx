@@ -8,12 +8,9 @@ import {
     Plus,
     Folder,
     Trash2,
-    Play,
-    Square,
-    FileCode,
-    ChevronRight,
     Edit2,
     Settings,
+    ChevronRight,
 } from 'lucide-react';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import RenameModal from '@/components/ui/RenameModal';
@@ -147,8 +144,8 @@ export default function Sidebar({
                 const newCompose = stringify(doc);
                 await updateProject(targetId, { compose: newCompose });
                 await fetchProjects();
-            } catch (e) {
-                console.error("Failed to add to group", e);
+            } catch {
+                console.error("Failed to add to group");
             }
         }
         setShowAddToGroupModal(false);
@@ -214,7 +211,7 @@ services: {}
                         parentMap.set(childId, project.id);
                     });
                 }
-            } catch (e) {
+} catch (e) {
                 console.error("Failed to parse YAML for hierarchy pass:", e);
             }
         });
@@ -339,7 +336,7 @@ services: {}
                 <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-2`}>
                     <button
                         onClick={onNewProject}
-                        disabled={config && !config.features.editCompose}
+                        disabled={Boolean(config && !config.features.editCompose)}
                         title="New Composition"
                         className={`flex items-center justify-center gap-2 px-3 py-3 bg-nier-dark text-nier-beige text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all border-b-2 border-nier-dark/20 disabled:opacity-50 disabled:cursor-not-allowed ${isCollapsed ? 'w-12 rounded-lg' : 'w-full'}`}
                     >
@@ -617,7 +614,7 @@ function ProjectItem({ project, isSelected, level, hasChildren, isSidebarCollaps
         }
     };
 
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = (_e: React.MouseEvent) => {
         if (!isDragging) {
             onSelect();
         }

@@ -411,7 +411,7 @@ const ComposeGraph = forwardRef(({
         dagre.layout(g);
 
         // 6. Generate ReactFlow Elements
-        g.nodes().forEach((id) => {
+        g.nodes().forEach((id: string) => {
             const nodeInfo = g.node(id) as any;
             const project = projectMap.get(id);
             if (!project) return;
@@ -512,7 +512,7 @@ const ComposeGraph = forwardRef(({
         });
 
         // 7. Generate Hierarchy Edges (Group -> Project)
-        g.edges().forEach((e) => {
+        g.edges().forEach((e: any) => {
             allEdges.push({
                 id: `edge-${e.v}-${e.w}`,
                 source: `project-${e.v}`,
@@ -603,7 +603,7 @@ const ComposeGraph = forwardRef(({
                         const isParent = (node.data as any).isParent;
                         if (!sourceProjectId) return;
 
-                        const { updateProject, createProject, projects } = useStore.getState();
+                        const { updateProject, projects } = useStore.getState();
 
                         // Get all leaf descendants helper
                         const getLeafDescendants = (pid: string): string[] => {

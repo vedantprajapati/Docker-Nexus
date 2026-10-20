@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"time"
@@ -148,7 +149,6 @@ func (h *DockerHandler) GetProjectStatus(c *fiber.Ctx) error {
 
 	statuses, err := h.Service.GetProjectStatus(id)
 	if err != nil {
-		// Log error?
 		return c.JSON([]services.ServiceStatus{})
 	}
 
@@ -176,6 +176,7 @@ func (h *DockerHandler) GetProjectLogs(c *fiber.Ctx) error {
 		c.Set("Content-Type", "text/event-stream")
 		c.Set("Cache-Control", "no-cache")
 		c.Set("Connection", "keep-alive")
+		c.Set("Transfer-Encoding", "chunked")
 
 		ctx := c.Context()
 		logChan, err := h.Service.StreamProjectLogs(ctx, id, service, tail)
@@ -183,11 +184,14 @@ func (h *DockerHandler) GetProjectLogs(c *fiber.Ctx) error {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 
-		// Stream logs
-		// Fiber's context is cancelled when client disconnects
-		for line := range logChan {
-			fmt.Fprintf(c, "data: %s\n\n", line)
-		}
+		c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+			for line := range logChan {
+				fmt.Fprintf(w, "data: %s\n\n", line)
+				if err := w.Flush(); err != nil {
+					return
+				}
+			}
+		})
 		return nil
 	}
 

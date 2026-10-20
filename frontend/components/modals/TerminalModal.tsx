@@ -86,7 +86,7 @@ export default function TerminalModal({ isOpen, projectId, serviceName, onClose 
             };
 
             // Send input to server
-            term.onData((data) => {
+            term.onData((data: string) => {
                 if (ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'input', data }));
                 }
